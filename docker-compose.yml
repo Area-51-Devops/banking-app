@@ -1,0 +1,182 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: banking_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: banking_db
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./db-init/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      timeout: 10s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: banking_redis
+    ports:
+      - "6379:6379"
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: banking_rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  user-service:
+    build: ./services/user-service
+    container_name: user-service
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - DB_HOST=mysql
+      - DB_USER=root
+      - DB_PASS=rootpassword
+      - DB_NAME=banking_db
+      - REDIS_HOST=redis
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  account-service:
+    build: ./services/account-service
+    container_name: account-service
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+      - DB_HOST=mysql
+      - DB_USER=root
+      - DB_PASS=rootpassword
+      - DB_NAME=banking_db
+      - REDIS_HOST=redis
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  transaction-service:
+    build: ./services/transaction-service
+    container_name: transaction-service
+    ports:
+      - "3003:3003"
+    environment:
+      - PORT=3003
+      - DB_HOST=mysql
+      - DB_USER=root
+      - DB_PASS=rootpassword
+      - DB_NAME=banking_db
+      - REDIS_HOST=redis
+      - MQ_URL=amqp://rabbitmq
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  payment-service:
+    build: ./services/payment-service
+    container_name: payment-service
+    ports:
+      - "3004:3004"
+    environment:
+      - PORT=3004
+      - DB_HOST=mysql
+      - DB_USER=root
+      - DB_PASS=rootpassword
+      - DB_NAME=banking_db
+      - REDIS_HOST=redis
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  loan-service:
+    build: ./services/loan-service
+    container_name: loan-service
+    ports:
+      - "3005:3005"
+    environment:
+      - PORT=3005
+      - DB_HOST=mysql
+      - DB_USER=root
+      - DB_PASS=rootpassword
+      - DB_NAME=banking_db
+      - REDIS_HOST=redis
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  notification-service:
+    build: ./services/notification-service
+    container_name: notification-service
+    ports:
+      - "3006:3006"
+    environment:
+      - PORT=3006
+      - MQ_URL=amqp://rabbitmq
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  fraud-detection-service:
+    build: ./services/fraud-detection-service
+    container_name: fraud-detection-service
+    ports:
+      - "3007:3007"
+    environment:
+      - PORT=3007
+      - MQ_URL=amqp://rabbitmq
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+
+  config-service:
+    build: ./services/config-service
+    container_name: config-service
+    ports:
+      - "3008:3008"
+    environment:
+      - PORT=3008
+
+  service-discovery:
+    build: ./services/service-discovery
+    container_name: service-discovery
+    ports:
+      - "3009:3009"
+    environment:
+      - PORT=3009
+
+  reporting-service:
+    build: ./services/reporting-service
+    container_name: reporting-service
+    ports:
+      - "3010:3010"
+    environment:
+      - PORT=3010
+      - DB_HOST=mysql
+      - DB_USER=root
+      - DB_PASS=rootpassword
+      - DB_NAME=banking_db
+    depends_on:
+      mysql:
+        condition: service_healthy
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    ports:
+      - "3000:3000"
+volumes:
+  mysql_data:
+
