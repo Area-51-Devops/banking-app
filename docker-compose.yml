@@ -1,182 +1,343 @@
 version: '3.8'
 
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  networks:
+    - banking-net
+
+# ──────────────────────────────────────────────
+# INFRASTRUCTURE
+# ──────────────────────────────────────────────
 services:
   mysql:
+    <<: *service-defaults
     image: mysql:8.0
-    container_name: banking_mysql
     environment:
       MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: banking_db
+      MYSQL_DATABASE:      banking_db
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./db-init:/docker-entrypoint-initdb.d
     ports:
       - "3306:3306"
-    volumes:
-      - mysql_data:/var/lib/mysql
-      - ./db-init/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
-      timeout: 10s
-      retries: 5
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-prootpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 40s
 
   redis:
+    <<: *service-defaults
     image: redis:7-alpine
-    container_name: banking_redis
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
 
   rabbitmq:
+    <<: *service-defaults
     image: rabbitmq:3-management-alpine
-    container_name: banking_rabbitmq
     ports:
       - "5672:5672"
       - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
     healthcheck:
-      test: rabbitmq-diagnostics -q ping
-      interval: 30s
-      timeout: 5s
-      retries: 3
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
 
-  user-service:
-    build: ./services/user-service
-    container_name: user-service
-    ports:
-      - "3001:3001"
-    environment:
-      - PORT=3001
-      - DB_HOST=mysql
-      - DB_USER=root
-      - DB_PASS=rootpassword
-      - DB_NAME=banking_db
-      - REDIS_HOST=redis
-    depends_on:
-      mysql:
-        condition: service_healthy
-
-  account-service:
-    build: ./services/account-service
-    container_name: account-service
-    ports:
-      - "3002:3002"
-    environment:
-      - PORT=3002
-      - DB_HOST=mysql
-      - DB_USER=root
-      - DB_PASS=rootpassword
-      - DB_NAME=banking_db
-      - REDIS_HOST=redis
-    depends_on:
-      mysql:
-        condition: service_healthy
-
-  transaction-service:
-    build: ./services/transaction-service
-    container_name: transaction-service
-    ports:
-      - "3003:3003"
-    environment:
-      - PORT=3003
-      - DB_HOST=mysql
-      - DB_USER=root
-      - DB_PASS=rootpassword
-      - DB_NAME=banking_db
-      - REDIS_HOST=redis
-      - MQ_URL=amqp://rabbitmq
-    depends_on:
-      mysql:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_healthy
-
-  payment-service:
-    build: ./services/payment-service
-    container_name: payment-service
-    ports:
-      - "3004:3004"
-    environment:
-      - PORT=3004
-      - DB_HOST=mysql
-      - DB_USER=root
-      - DB_PASS=rootpassword
-      - DB_NAME=banking_db
-      - REDIS_HOST=redis
-    depends_on:
-      mysql:
-        condition: service_healthy
-
-  loan-service:
-    build: ./services/loan-service
-    container_name: loan-service
-    ports:
-      - "3005:3005"
-    environment:
-      - PORT=3005
-      - DB_HOST=mysql
-      - DB_USER=root
-      - DB_PASS=rootpassword
-      - DB_NAME=banking_db
-      - REDIS_HOST=redis
-    depends_on:
-      mysql:
-        condition: service_healthy
-
-  notification-service:
-    build: ./services/notification-service
-    container_name: notification-service
-    ports:
-      - "3006:3006"
-    environment:
-      - PORT=3006
-      - MQ_URL=amqp://rabbitmq
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-
-  fraud-detection-service:
-    build: ./services/fraud-detection-service
-    container_name: fraud-detection-service
-    ports:
-      - "3007:3007"
-    environment:
-      - PORT=3007
-      - MQ_URL=amqp://rabbitmq
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-
+# ──────────────────────────────────────────────
+# CONFIG SERVICE  (start early so others can read it)
+# ──────────────────────────────────────────────
   config-service:
-    build: ./services/config-service
-    container_name: config-service
+    <<: *service-defaults
+    build:
+      context: ./services
+      dockerfile: config-service/Dockerfile
     ports:
       - "3008:3008"
     environment:
-      - PORT=3008
+      PORT:        3008
+      SERVICE_NAME: config-service
+      REDIS_HOST:  redis
+      REDIS_PORT:  6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3008/health/startup"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
-  service-discovery:
-    build: ./services/service-discovery
-    container_name: service-discovery
+# ──────────────────────────────────────────────
+# APPLICATION SERVICES
+# ──────────────────────────────────────────────
+  user-service:
+    <<: *service-defaults
+    build:
+      context: ./services
+      dockerfile: user-service/Dockerfile
     ports:
-      - "3009:3009"
+      - "3001:3001"
     environment:
-      - PORT=3009
-
-  reporting-service:
-    build: ./services/reporting-service
-    container_name: reporting-service
-    ports:
-      - "3010:3010"
-    environment:
-      - PORT=3010
-      - DB_HOST=mysql
-      - DB_USER=root
-      - DB_PASS=rootpassword
-      - DB_NAME=banking_db
+      PORT:        3001
+      SERVICE_NAME: user-service
+      DB_HOST:     mysql
+      DB_USER:     root
+      DB_PASS:     rootpassword
+      DB_NAME:     banking_db
+      REDIS_HOST:  redis
+      REDIS_PORT:  6379
+      JWT_SECRET:  banking_jwt_secret_change_in_prod
+      JWT_EXPIRE:  8h
     depends_on:
       mysql:
         condition: service_healthy
-  frontend:
-    build: ./frontend
-    container_name: frontend
-    ports:
-      - "3000:3000"
-volumes:
-  mysql_data:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health/startup"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
 
+  account-service:
+    <<: *service-defaults
+    build:
+      context: ./services
+      dockerfile: account-service/Dockerfile
+    ports:
+      - "3002:3002"
+    environment:
+      PORT:        3002
+      SERVICE_NAME: account-service
+      DB_HOST:     mysql
+      DB_USER:     root
+      DB_PASS:     rootpassword
+      DB_NAME:     banking_db
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3002/health/startup"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  transaction-service:
+    <<: *service-defaults
+    build:
+      context: ./services
+      dockerfile: transaction-service/Dockerfile
+    ports:
+      - "3003:3003"
+    environment:
+      PORT:             3003
+      SERVICE_NAME:     transaction-service
+      DB_HOST:          mysql
+      DB_USER:          root
+      DB_PASS:          rootpassword
+      DB_NAME:          banking_db
+      MQ_URL:           amqp://rabbitmq
+      ACCOUNT_SVC_URL:  http://account-service:3002
+      CONFIG_SVC_URL:   http://config-service:3008
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      account-service:
+        condition: service_healthy
+      config-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3003/health/startup"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
+
+  fraud-detection-service:
+    <<: *service-defaults
+    build:
+      context: ./services
+      dockerfile: fraud-detection-service/Dockerfile
+    ports:
+      - "3007:3007"
+    environment:
+      PORT:           3007
+      SERVICE_NAME:   fraud-detection-service
+      MQ_URL:         amqp://rabbitmq
+      CONFIG_SVC_URL: http://config-service:3008
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      config-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3007/health/startup"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  notification-service:
+    <<: *service-defaults
+    build:
+      context: ./services
+      dockerfile: notification-service/Dockerfile
+    ports:
+      - "3006:3006"
+    environment:
+      PORT:        3006
+      SERVICE_NAME: notification-service
+      DB_HOST:     mysql
+      DB_USER:     root
+      DB_PASS:     rootpassword
+      DB_NAME:     banking_db
+      MQ_URL:      amqp://rabbitmq
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3006/health/startup"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  payment-service:
+    <<: *service-defaults
+    build:
+      context: ./services
+      dockerfile: payment-service/Dockerfile
+    ports:
+      - "3004:3004"
+    environment:
+      PORT:            3004
+      SERVICE_NAME:    payment-service
+      DB_HOST:         mysql
+      DB_USER:         root
+      DB_PASS:         rootpassword
+      DB_NAME:         banking_db
+      MQ_URL:          amqp://rabbitmq
+      ACCOUNT_SVC_URL: http://account-service:3002
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      account-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3004/health/startup"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  loan-service:
+    <<: *service-defaults
+    build:
+      context: ./services
+      dockerfile: loan-service/Dockerfile
+    ports:
+      - "3005:3005"
+    environment:
+      PORT:        3005
+      SERVICE_NAME: loan-service
+      DB_HOST:     mysql
+      DB_USER:     root
+      DB_PASS:     rootpassword
+      DB_NAME:     banking_db
+      MQ_URL:      amqp://rabbitmq
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3005/health/startup"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  reporting-service:
+    <<: *service-defaults
+    build:
+      context: ./services
+      dockerfile: reporting-service/Dockerfile
+    ports:
+      - "3010:3010"
+    environment:
+      PORT:        3010
+      SERVICE_NAME: reporting-service
+      DB_HOST:     mysql
+      DB_USER:     root
+      DB_PASS:     rootpassword
+      DB_NAME:     banking_db
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3010/health/startup"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  service-discovery:
+    <<: *service-defaults
+    build:
+      context: ./services
+      dockerfile: service-discovery/Dockerfile
+    ports:
+      - "3009:3009"
+    environment:
+      PORT:        3009
+      SERVICE_NAME: service-discovery
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3009/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+# ──────────────────────────────────────────────
+# FRONTEND
+# ──────────────────────────────────────────────
+  frontend:
+    <<: *service-defaults
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      user-service:
+        condition: service_healthy
+      account-service:
+        condition: service_healthy
+
+volumes:
+  mysql-data:
+
+networks:
+  banking-net:
+    driver: bridge

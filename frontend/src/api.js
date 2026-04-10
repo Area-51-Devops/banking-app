@@ -1,40 +1,46 @@
 import axios from "axios";
 
-const userURL =
-  (typeof window !== "undefined" && window.__ENV__ && window.__ENV__.USER_URL) ||
-  import.meta.env?.VITE_USER_URL ||
-  "";
+// Using relative paths because Nginx now reverse-proxies to the backend services
+// This allows the app to work seamlessly when deployed on EC2 or anywhere else,
+// regardless of the public IP or DNS name.
+export const BASE_URLS = {
+  user:    "/api/user",
+  account: "/api/account",
+  tx:      "/api/tx",
+  payment: "/api/payment",
+  loan:    "/api/loan",
+  notify:  "/api/notify",
+  report:  "/api/report",
+};
 
-const accountURL =
-  (typeof window !== "undefined" && window.__ENV__ && window.__ENV__.ACCOUNT_URL) ||
-  import.meta.env?.VITE_ACCOUNT_URL ||
-  "";
+const timeout = 10000;
 
-const txURL =
-  (typeof window !== "undefined" && window.__ENV__ && window.__ENV__.TX_URL) ||
-  import.meta.env?.VITE_TX_URL ||
-  "";
-
-const loanURL =
-  (typeof window !== "undefined" && window.__ENV__ && window.__ENV__.LOAN_URL) ||
-  import.meta.env?.VITE_LOAN_URL ||
-  "";
-
-const reportURL =
-  (typeof window !== "undefined" && window.__ENV__ && window.__ENV__.REPORT_URL) ||
-  import.meta.env?.VITE_REPORT_URL ||
-  "";
-
-const timeout = Number(
-  (typeof window !== "undefined" && window.__ENV__ && window.__ENV__.API_TIMEOUT) ||
-  import.meta.env?.VITE_API_TIMEOUT ||
-  10000
-);
+function makeClient(baseURL) {
+  const instance = axios.create({ baseURL, timeout });
+  // Attach JWT if present
+  instance.interceptors.request.use((cfg) => {
+    const token = localStorage.getItem("token");
+    if (token) cfg.headers["Authorization"] = `Bearer ${token}`;
+    return cfg;
+  });
+  return instance;
+}
 
 export const API = {
-	user: axios.create({ baseURL: userURL, timeout }),
-	account: axios.create({ baseURL: accountURL, timeout }),
-	tx: axios.create({ baseURL: txURL, timeout }),
-	loan: axios.create({ baseURL: loanURL, timeout }),
-	report: axios.create({ baseURL: reportURL, timeout })
+  user:    makeClient(BASE_URLS.user),
+  account: makeClient(BASE_URLS.account),
+  tx:      makeClient(BASE_URLS.tx),
+  payment: makeClient(BASE_URLS.payment),
+  loan:    makeClient(BASE_URLS.loan),
+  notify:  makeClient(BASE_URLS.notify),
+  report:  makeClient(BASE_URLS.report),
+};
+
+/** Format a number as Indian Rupees */
+export function formatINR(amount) {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: 2,
+  }).format(amount ?? 0);
 }

@@ -1,80 +1,217 @@
+'use strict';
 require('dotenv').config();
-const express = require('express');
-const cors = require('cors');
-const mysql = require('mysql2/promise');
-const Redis = require('ioredis');
+
+const express   = require('express');
+const cors      = require('cors');
+const mysql     = require('mysql2/promise');
+const Redis     = require('ioredis');
+const bcrypt    = require('bcryptjs');
+const jwt       = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 
+const { logger }             = require('../shared/logger');
+const { requestIdMiddleware } = require('../shared/requestId');
+const { errorMiddleware, createError } = require('../shared/errorMiddleware');
+
+const PORT       = process.env.PORT       || 3001;
+const JWT_SECRET = process.env.JWT_SECRET || 'banking_jwt_secret_change_in_prod';
+const JWT_EXPIRE = process.env.JWT_EXPIRE || '8h';
+const SALT_ROUNDS = 10;
+
+let pool;
+let redisClient;
+let isStarted = false;   // used by /health/startup
+
+// ──────────────────────────────────────────────
+// Exponential backoff connector
+// ──────────────────────────────────────────────
+async function connectWithRetry(connectFn, name, maxRetries = 10) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await connectFn();
+      logger.info({ service: 'user-service' }, `${name} connected`);
+      return result;
+    } catch (err) {
+      const delay = Math.min(1000 * Math.pow(2, attempt - 1), 30000);
+      logger.warn({ service: 'user-service', attempt, delay }, `${name} not ready, retrying in ${delay}ms`);
+      if (attempt === maxRetries) throw new Error(`${name} failed after ${maxRetries} retries`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+}
+
+async function init() {
+  // MySQL pool
+  pool = await connectWithRetry(async () => {
+    const p = mysql.createPool({
+      host:              process.env.DB_HOST     || 'mysql',
+      user:              process.env.DB_USER     || 'root',
+      password:          process.env.DB_PASS     || 'rootpassword',
+      database:          process.env.DB_NAME     || 'banking_db',
+      waitForConnections: true,
+      connectionLimit:   10,
+      queueLimit:        0
+    });
+    // Verify connectivity
+    const [rows] = await p.execute('SELECT 1');
+    if (!rows) throw new Error('DB ping failed');
+    return p;
+  }, 'MySQL');
+
+  // Redis
+  redisClient = await connectWithRetry(async () => {
+    const client = new Redis({
+      host:        process.env.REDIS_HOST || 'redis',
+      port:        parseInt(process.env.REDIS_PORT || '6379'),
+      lazyConnect:  true
+    });
+    await client.connect();
+    await client.ping();
+    return client;
+  }, 'Redis');
+
+  isStarted = true;
+}
+
+// ──────────────────────────────────────────────
+// Express App
+// ──────────────────────────────────────────────
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(requestIdMiddleware);
 
-const PORT = process.env.PORT || 3001;
+// ── Health Probes ──────────────────────────────
+app.get('/health/startup', (req, res) => {
+  res.json({ status: isStarted ? 'UP' : 'STARTING', service: 'user-service' });
+});
 
-let pool;
-let redis;
+app.get('/health/liveness', async (req, res, next) => {
+  try {
+    await pool.execute('SELECT 1');
+    await redisClient.ping();
+    res.json({ status: 'UP', service: 'user-service' });
+  } catch (err) {
+    next(createError(503, 'HEALTH_CHECK_FAILED', 'Liveness check failed'));
+  }
+});
 
-async function init() {
-    pool = mysql.createPool({
-        host: process.env.DB_HOST || 'mysql',
-        user: process.env.DB_USER || 'root',
-        password: process.env.DB_PASS || 'rootpassword',
-        database: process.env.DB_NAME || 'banking_db',
-        waitForConnections: true,
-        connectionLimit: 10,
-        queueLimit: 0
+app.get('/health/readiness', async (req, res, next) => {
+  try {
+    if (!isStarted) throw new Error('Not ready');
+    await pool.execute('SELECT 1');
+    await redisClient.ping();
+    res.json({ status: 'READY', service: 'user-service' });
+  } catch (err) {
+    next(createError(503, 'NOT_READY', 'Service not ready'));
+  }
+});
+
+// Legacy health endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'UP', service: 'user-service' });
+});
+
+// ── Register ───────────────────────────────────
+app.post('/users/register', async (req, res, next) => {
+  const log = logger.child({ requestId: req.requestId, endpoint: 'register' });
+  try {
+    const { username, email, password } = req.body;
+    if (!username || !email || !password) {
+      return next(createError(400, 'VALIDATION_ERROR', 'username, email and password are required'));
+    }
+
+    const hashedPassword = await bcrypt.hash(password, SALT_ROUNDS);
+    const [result] = await pool.execute(
+      'INSERT INTO users (username, email, password) VALUES (?, ?, ?)',
+      [username, email, hashedPassword]
+    );
+    const userId = result.insertId;
+    log.info({ userId }, 'User registered');
+    res.status(201).json({ success: true, userId, username });
+  } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') {
+      return next(createError(409, 'USER_EXISTS', 'Username already exists'));
+    }
+    next(err);
+  }
+});
+
+// ── Login ──────────────────────────────────────
+app.post('/users/login', async (req, res, next) => {
+  const log = logger.child({ requestId: req.requestId, endpoint: 'login' });
+  try {
+    const { username, password } = req.body;
+    if (!username || !password) {
+      return next(createError(400, 'VALIDATION_ERROR', 'username and password are required'));
+    }
+
+    const [rows] = await pool.execute('SELECT * FROM users WHERE username = ?', [username]);
+    if (rows.length === 0) {
+      return next(createError(401, 'INVALID_CREDENTIALS', 'Invalid username or password'));
+    }
+
+    const user = rows[0];
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) {
+      return next(createError(401, 'INVALID_CREDENTIALS', 'Invalid username or password'));
+    }
+
+    const token = jwt.sign(
+      { userId: user.id, username: user.username },
+      JWT_SECRET,
+      { expiresIn: JWT_EXPIRE }
+    );
+
+    // Cache session in Redis
+    await redisClient.setex(`session:${user.id}`, 8 * 3600, token);
+
+    log.info({ userId: user.id }, 'User logged in');
+    res.json({
+      success: true,
+      token,
+      user: { id: user.id, username: user.username, email: user.email }
     });
-    redis = new Redis({ host: process.env.REDIS_HOST || 'redis' });
-    console.log("User service connected to DB and Redis.");
-}
+  } catch (err) {
+    next(err);
+  }
+});
 
-app.get('/health', (req, res) => res.status(200).json({ status: 'UP', service: 'user-service' }));
-
-app.post('/register', async (req, res) => {
-    try {
-        const { username, password, email } = req.body;
-        const [result] = await pool.execute(
-            'INSERT INTO users (username, password, email) VALUES (?, ?, ?)',
-            [username, password, email]
-        );
-        res.status(201).json({ id: result.insertId, username, email });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Registration failed' });
+// ── Get User ───────────────────────────────────
+app.get('/users/:id', async (req, res, next) => {
+  try {
+    const [rows] = await pool.execute(
+      'SELECT id, username, email, created_at FROM users WHERE id = ?',
+      [req.params.id]
+    );
+    if (rows.length === 0) {
+      return next(createError(404, 'USER_NOT_FOUND', 'User not found'));
     }
+    res.json({ success: true, user: rows[0] });
+  } catch (err) {
+    next(err);
+  }
 });
 
-app.post('/login', async (req, res) => {
-    try {
-        const { username, password } = req.body;
-        const [rows] = await pool.execute('SELECT * FROM users WHERE username = ? AND password = ?', [username, password]);
-        if (rows.length === 0) return res.status(401).json({ error: 'Invalid credentials' });
-        
-        const user = rows[0];
-        const token = uuidv4();
-        await redis.set(`session:${token}`, user.id, 'EX', 3600); // 1 hr expiry
-        
-        res.json({ token, user: { id: user.id, username: user.username, email: user.email } });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ error: 'Login failed' });
-    }
+// ── Verify Token ───────────────────────────────
+app.post('/users/verify-token', (req, res, next) => {
+  try {
+    const { token } = req.body;
+    if (!token) return next(createError(400, 'MISSING_TOKEN', 'Token is required'));
+    const decoded = jwt.verify(token, JWT_SECRET);
+    res.json({ success: true, decoded });
+  } catch (err) {
+    next(createError(401, 'INVALID_TOKEN', 'Token is invalid or expired'));
+  }
 });
 
-app.get('/me', async (req, res) => {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) return res.status(401).send('Unauthorized');
-    const token = authHeader.split(' ')[1];
-    if (!token) return res.status(401).send('Unauthorized');
+// ── Global Error Handler ───────────────────────
+app.use(errorMiddleware);
 
-    const userId = await redis.get(`session:${token}`);
-    if (!userId) return res.status(401).send('Session expired');
+// ── Boot ───────────────────────────────────────
+app.listen(PORT, () => logger.info({ port: PORT }, 'user-service listening'));
 
-    const [rows] = await pool.execute('SELECT id, username, email FROM users WHERE id = ?', [userId]);
-    if (rows.length === 0) return res.status(404).send('User not found');
-    res.json(rows[0]);
+init().catch(err => {
+  logger.fatal({ err }, 'user-service failed to initialise');
+  process.exit(1);
 });
-
-init().then(() => {
-    app.listen(PORT, () => console.log(`user-service running on port ${PORT}`));
-}).catch(console.error);
