@@ -1,4 +1,4 @@
-﻿# 🏦 NexusBank - Microservices Banking System
+# 🏦 NexusBank - Microservices Banking System
 
 This is a complete, production-grade banking system featuring **10 backend Node.js microservices** and a **React frontend**, all containerized using Docker and Docker Compose. It demonstrates advanced distributed architecture patterns including **Saga Orchestration**, the **Outbox Pattern**, scoped Idempotency, and highly resilient connection strategies.
 
@@ -49,7 +49,13 @@ This is a complete, production-grade banking system featuring **10 backend Node.
 - Go to `http://localhost/register`.
 - Create a new account. `user-service` securely hashes passwords and instantly delegates to `account-service` to provision the exact starting balances via HTTP calls leveraging `axios-retry`.
 
-### 2. Saga Orchestrated Transfers
+### 2. Secure Admin Dashboard
+- Log in with the pre-seeded admin credentials:
+  - **Username:** `admin`
+  - **Password:** `admin123`
+- You will automatically be routed to a protected Admin Dashboard to review and approve/reject loan applications.
+
+### 3. Saga Orchestrated Transfers
 - Log in and navigate to **Transfer**.
 - When you transfer money, `transaction-service` utilizes a local state machine (`INITIATED`, `DEBITED`, `CREDITED`, `SUCCESS`).
 - If an issue occurs halfway through processing, the orchestrator triggers async compensation routes (reversing `DEBIT` steps to guarantee balance consistency).

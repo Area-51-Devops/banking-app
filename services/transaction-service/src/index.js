@@ -96,7 +96,9 @@ async function startOutboxPoller() {
       for (const event of events) {
         const conn2 = await pool.getConnection();
         try {
-          mqChannel.publish(EXCHANGE, event.event_type, Buffer.from(event.payload), { persistent: true });
+          // mysql2 auto-parses JSON columns into JS objects — must re-stringify before publishing
+          const payloadStr = typeof event.payload === 'string' ? event.payload : JSON.stringify(event.payload);
+          mqChannel.publish(EXCHANGE, event.event_type, Buffer.from(payloadStr), { persistent: true });
           await conn2.execute(
             "UPDATE outbox_events SET status='PUBLISHED', updated_at=NOW() WHERE id=?",
             [event.id]

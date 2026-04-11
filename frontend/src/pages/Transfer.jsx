@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { API, formatINR } from "../api";
@@ -12,6 +12,10 @@ export default function Transfer() {
   const [loading, setLoading]     = useState(false);
   const [history, setHistory]     = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+
+  // Stable ref to addToast so it never triggers an infinite effect loop
+  const addToastRef = useRef(addToast);
+  useEffect(() => { addToastRef.current = addToast; });
 
   useEffect(() => {
     if (!user) return;
@@ -28,9 +32,9 @@ export default function Transfer() {
     setIsLoadingHistory(true);
     API.tx.get(`/transactions?accountId=${form.fromAccountId}`)
       .then(r => setHistory(r.data.transactions || []))
-      .catch(() => addToast("Failed to load transaction history", "error"))
+      .catch(() => addToastRef.current("Failed to load transaction history", "error"))
       .finally(() => setIsLoadingHistory(false));
-  }, [form.fromAccountId, addToast]);
+  }, [form.fromAccountId]); // ← removed addToast from deps to prevent infinite loop
 
   const submit = async (e) => {
     e.preventDefault();

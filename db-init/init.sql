@@ -16,8 +16,8 @@ CREATE TABLE IF NOT EXISTS users (
 
 -- Seed initial admin user (see README for credentials)
 -- INSERT IGNORE ensures idempotency — safe to re-run
-INSERT IGNORE INTO users (id, username, password, email, role) 
-VALUES (1, 'admin', '$2a$10$DFdCs1/O.mmjYSXVTUZiNJAFTWCeJuwmuKmko/yKVefJ2MEN', 'admin@nexus.com', 'ADMIN');
+INSERT IGNORE INTO users (username, password, email, role) 
+VALUES ('admin', '$2b$10$sl2ZqNgwwn/eXBAspXMS3OuQTLd8TD.NEJXqq84Peyrlc1b9nq.Km', 'admin@nexus.com', 'ADMIN');
 
 -- ============================================================
 -- ACCOUNTS

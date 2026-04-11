@@ -60,7 +60,59 @@ async function init() {
     return conn;
   }, 'RabbitMQ');
 
+  startOutboxPoller();
   isStarted = true;
+}
+
+// ── Outbox Poller ───────────────────────────────
+// Publishes UNPUBLISHED outbox_events to RabbitMQ (SKIP LOCKED for safety)
+function startOutboxPoller() {
+  setInterval(async () => {
+    if (!mqChannel) return;
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [events] = await conn.execute(
+        `SELECT * FROM outbox_events
+           WHERE status IN ('UNPUBLISHED','FAILED') AND retry_count < 5
+           ORDER BY id ASC LIMIT 10
+           FOR UPDATE SKIP LOCKED`
+      );
+      if (events.length === 0) { await conn.rollback(); conn.release(); return; }
+
+      const ids = events.map(e => e.id);
+      await conn.execute(
+        `UPDATE outbox_events SET status='PROCESSING' WHERE id IN (${ids.map(() => '?').join(',')})`,
+        ids
+      );
+      await conn.commit();
+      conn.release();
+
+      for (const event of events) {
+        const conn2 = await pool.getConnection();
+        try {
+          // mysql2 auto-parses JSON columns into JS objects — must re-stringify
+          const payloadStr = typeof event.payload === 'string' ? event.payload : JSON.stringify(event.payload);
+          mqChannel.publish(EXCHANGE, event.event_type, Buffer.from(payloadStr), { persistent: true });
+          await conn2.execute(
+            "UPDATE outbox_events SET status='PUBLISHED', updated_at=NOW() WHERE id=?",
+            [event.id]
+          );
+          logger.info({ eventId: event.id, eventType: event.event_type }, 'Loan outbox event published');
+        } catch (pubErr) {
+          logger.error({ eventId: event.id, err: pubErr.message }, 'Failed to publish loan outbox event');
+          await conn2.execute(
+            "UPDATE outbox_events SET status='FAILED', retry_count=retry_count+1, updated_at=NOW() WHERE id=?",
+            [event.id]
+          );
+        } finally { conn2.release(); }
+      }
+    } catch (err) {
+      logger.error({ err: err.message }, 'Loan outbox poller error');
+      try { await conn.rollback(); } catch (_) {}
+      conn.release();
+    }
+  }, 5000);
 }
 
 const app = express();
@@ -196,6 +248,13 @@ app.patch('/loans/:id/status', authMiddleware, adminMiddleware, async (req, res,
           { headers: { 'idempotency-key': `loan-disburse:${loan.id}` } }
         );
         log.info({ loanId: loan.id, userId: loan.user_id, amount: loan.amount, accountId: userAccountId }, 'Loan amount disbursed to user account');
+
+        // Record a LOAN_CREDIT transaction so it appears in the user's transaction history
+        await conn.execute(
+          `INSERT INTO transactions (from_account_id, to_account_id, amount, status, saga_state, request_id)
+             VALUES (NULL, ?, ?, 'SUCCESS', 'SUCCESS', ?)`,
+          [userAccountId, loan.amount, `loan-disburse:${loan.id}`]
+        );
       } catch (disburseErr) {
         // Rollback the loan approval if disbursement fails
         await conn.rollback();
