@@ -67,14 +67,20 @@ async function startConsumer(channel) {
       const log = logger.child({ transactionId, amount });
 
       // Apply fraud rule
-      const decision = Number(amount) >= fraudThreshold ? 'REJECTED' : 'APPROVED';
-      log.info({ decision, threshold: fraudThreshold }, 'Fraud decision made');
+      const isFraud = Number(amount) >= fraudThreshold;
+      
+      if (isFraud) {
+        log.info({ threshold: fraudThreshold }, 'Fraud detected. Passing to admin for manual review.');
+        // We DO NOT emit FraudRejected here. We leave the transaction in FLAGGED state 
+        // so the admin can review it on the dashboard.
+      } else {
+        const decision = 'APPROVED';
+        log.info({ decision, threshold: fraudThreshold }, 'Fraud decision made');
 
-      const decisionEvent = JSON.stringify({ transactionId, decision, amount, processedAt: new Date().toISOString() });
-      const routingKey = decision === 'APPROVED' ? 'FraudApproved' : 'FraudRejected';
-
-      channel.publish(EXCHANGE, routingKey, Buffer.from(decisionEvent), { persistent: true });
-      log.info({ routingKey }, 'Fraud decision event emitted');
+        const decisionEvent = JSON.stringify({ transactionId, decision, amount, processedAt: new Date().toISOString() });
+        channel.publish(EXCHANGE, 'FraudApproved', Buffer.from(decisionEvent), { persistent: true });
+        log.info({ routingKey: 'FraudApproved' }, 'Fraud decision event emitted');
+      }
 
       channel.ack(msg);
     } catch (err) {
