@@ -11,6 +11,7 @@ const { logger }              = require('../shared/logger');
 const { requestIdMiddleware }  = require('../shared/requestId');
 const { errorMiddleware, createError } = require('../shared/errorMiddleware');
 const { createHttpClient }     = require('../shared/httpClient');
+const { authMiddleware, adminMiddleware } = require('../shared/authMiddleware');
 
 const PORT         = process.env.PORT            || 3003;
 const ACCOUNT_SVC  = process.env.ACCOUNT_SVC_URL || 'http://account-service:3002';
@@ -468,6 +469,94 @@ app.get('/transactions', async (req, res, next) => {
     }
     res.json({ success: true, transactions: rows });
   } catch (err) { next(err); }
+});
+
+// ── Get Flagged Transactions (Admin only) ──────
+app.get('/transactions/flagged', authMiddleware, adminMiddleware, async (req, res, next) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 15));
+    const offset = (page - 1) * limit;
+
+    const [transactions] = await pool.execute(
+      "SELECT * FROM transactions WHERE status='FLAGGED' ORDER BY created_at DESC LIMIT ? OFFSET ?",
+      [String(limit), String(offset)]
+    );
+    const [countRes] = await pool.execute("SELECT COUNT(*) as total FROM transactions WHERE status='FLAGGED'");
+    
+    res.json({
+      success: true,
+      transactions,
+      pagination: {
+        total: countRes[0].total,
+        page,
+        limit,
+        pages: Math.ceil(countRes[0].total / limit)
+      }
+    });
+  } catch (err) { next(err); }
+});
+
+// ── Admin Review Fraud Flagged Transaction ─────
+app.patch('/transactions/:id/fraud-status', authMiddleware, adminMiddleware, async (req, res, next) => {
+  const { status } = req.body;
+  if (!['APPROVED', 'REJECTED'].includes(status)) {
+    return next(createError(400, 'VALIDATION_ERROR', "status must be 'APPROVED' or 'REJECTED'"));
+  }
+
+  const txId = req.params.id;
+  const adminId = req.user?.userId;
+  const log = logger.child({ requestId: req.requestId, txId });
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    
+    const [rows] = await conn.execute(
+      "SELECT * FROM transactions WHERE id=? FOR UPDATE SKIP LOCKED", [txId]
+    );
+    if (rows.length === 0) { 
+      await conn.rollback(); 
+      return next(createError(404, 'TX_NOT_FOUND', 'Transaction not found or locked')); 
+    }
+
+    const tx = rows[0];
+    if (tx.status !== 'FLAGGED') {
+      await conn.rollback();
+      return next(createError(400, 'INVALID_STATE', `Transaction is ${tx.status}, not FLAGGED`));
+    }
+    
+    const eventType = status === 'APPROVED' ? 'FraudApproved' : 'FraudRejected';
+    
+    const [accRows] = await conn.execute('SELECT user_id FROM accounts WHERE id=?', [tx.from_account_id]);
+    const senderUserId = accRows.length > 0 ? accRows[0].user_id : tx.from_account_id;
+
+    const payload = JSON.stringify({ 
+      transactionId: txId, 
+      decision: status, 
+      amount: tx.amount, 
+      processedAt: new Date().toISOString(),
+      userId: senderUserId,
+      fromAccountId: tx.from_account_id,
+      toAccountId: tx.to_account_id
+    });
+
+    await conn.execute(
+      "INSERT INTO outbox_events (event_type, aggregate_id, payload, status) VALUES (?, ?, ?, 'UNPUBLISHED')",
+      [eventType, String(txId), payload]
+    );
+
+    // Set to PROCESSING so it drops off the flagged queue immediately while Consumer finalizes it
+    await conn.execute("UPDATE transactions SET status='PROCESSING' WHERE id=?", [txId]);
+
+    await conn.commit();
+    log.info({ status, adminId }, 'Manual fraud review submitted');
+    res.json({ success: true, txId, status });
+  } catch (err) {
+    await conn.rollback(); next(err);
+  } finally {
+    conn.release();
+  }
 });
 
 // ── Get Single Transaction ─────────────────────
