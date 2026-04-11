@@ -288,6 +288,9 @@ app.post('/transfer', async (req, res, next) => {
   if (!fromAccountId || !toAccountId || !amount) {
     return next(createError(400, 'VALIDATION_ERROR', 'fromAccountId, toAccountId, and amount are required'));
   }
+  if (fromAccountId == toAccountId) {
+    return next(createError(400, 'VALIDATION_ERROR', 'Cannot transfer to the same account'));
+  }
   if (isNaN(amount) || Number(amount) <= 0) {
     return next(createError(400, 'VALIDATION_ERROR', 'Amount must be a positive number'));
   }

@@ -112,9 +112,17 @@ app.get('/health', (req, res) => {
   res.json({ status: 'UP', service: 'user-service' });
 });
 
+const axios     = require('axios');
+const axiosRetry = require('axios-retry').default || require('axios-retry');
+
+// Configure static axios client for internal calls
+const internalClient = axios.create({ timeout: 5000 });
+axiosRetry(internalClient, { retries: 3, retryDelay: axiosRetry.exponentialDelay });
+
 // ── Register ───────────────────────────────────
 app.post('/users/register', async (req, res, next) => {
   const log = logger.child({ requestId: req.requestId, endpoint: 'register' });
+  let userId;
   try {
     const { username, email, password } = req.body;
     if (!username || !email || !password) {
@@ -126,8 +134,19 @@ app.post('/users/register', async (req, res, next) => {
       'INSERT INTO users (username, email, password) VALUES (?, ?, ?)',
       [username, email, hashedPassword]
     );
-    const userId = result.insertId;
-    log.info({ userId }, 'User registered');
+    userId = result.insertId;
+
+    try {
+      // Synchronously create a default savings account for the new user, with retries and timeout
+      const accountServiceUrl = process.env.ACCOUNT_SVC_URL || 'http://account-service:3002';
+      await internalClient.post(`${accountServiceUrl}/accounts`, { userId, accountType: 'SAVINGS' });
+    } catch (accountErr) {
+      log.error({ err: accountErr.message, userId }, 'Failed to create initial account, rolling back user registration');
+      await pool.execute('DELETE FROM users WHERE id = ?', [userId]);
+      return next(createError(500, 'ACCOUNT_CREATION_FAILED', 'Failed to properly set up user account. Please try again later.'));
+    }
+
+    log.info({ userId }, 'User registered and account created');
     res.status(201).json({ success: true, userId, username });
   } catch (err) {
     if (err.code === 'ER_DUP_ENTRY') {

@@ -98,11 +98,9 @@ export default function BillPay() {
             </div>
             <div className="input-group">
               <label>Biller</label>
-              <select id="pay-biller" value={form.billerCode}
-                onChange={e => setForm({ ...form, billerCode: e.target.value })}>
-                <option value="">— Select biller —</option>
-                {billers.map(b => <option key={b.code} value={b.code}>{b.name}</option>)}
-              </select>
+              <div style={{ padding: "12px", border: "1px solid #ccc", borderRadius: "4px", backgroundColor: "#333", color: "#ddd" }}>
+                {form.billerCode ? billers.find(b => b.code === form.billerCode)?.name || "Selected" : "— Select a biller from above —"}
+              </div>
             </div>
             <div className="input-group">
               <label>Amount (₹)</label>

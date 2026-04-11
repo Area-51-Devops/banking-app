@@ -11,6 +11,7 @@ export default function Transfer() {
   const [form, setForm]           = useState({ fromAccountId: "", toAccountId: "", amount: "" });
   const [loading, setLoading]     = useState(false);
   const [history, setHistory]     = useState([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -20,8 +21,16 @@ export default function Transfer() {
         setAccounts(accs);
         if (accs.length > 0) setForm(f => ({ ...f, fromAccountId: String(accs[0].id) }));
       });
-    API.tx.get(`/transactions?accountId=`).then(r => setHistory(r.data.transactions || [])).catch(() => {});
   }, [user]);
+
+  useEffect(() => {
+    if (!form.fromAccountId) return;
+    setIsLoadingHistory(true);
+    API.tx.get(`/transactions?accountId=${form.fromAccountId}`)
+      .then(r => setHistory(r.data.transactions || []))
+      .catch(() => addToast("Failed to load transaction history", "error"))
+      .finally(() => setIsLoadingHistory(false));
+  }, [form.fromAccountId, addToast]);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -107,30 +116,33 @@ export default function Transfer() {
 
         <div className="surface-card">
           <h3>Transaction History</h3>
-          {history.length === 0
-            ? (
-              <div className="empty-state">
-                  <div className="empty-icon">💸</div>
-                  <div className="empty-text">No outgoing transactions yet.</div>
-              </div>
-            )
-            : (
-              <div className="table-container">
-                <table>
-                  <thead><tr><th>#</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead>
-                  <tbody>
-                    {history.slice(0, 10).map(tx => (
-                      <tr key={tx.id}>
-                        <td>{tx.id}</td>
-                        <td>{formatINR(tx.amount)}</td>
-                        <td><span className={`status-badge status-${tx.status?.toLowerCase()}`}>{tx.status}</span></td>
-                        <td>{new Date(tx.created_at).toLocaleDateString("en-IN")}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+          {isLoadingHistory ? (
+            <div className="empty-state">
+              <div className="spinner" style={{ borderColor: "#666", borderTopColor: "#fff", width: "24px", height: "24px", borderWidth: "3px" }}></div>
+              <div className="empty-text">Loading transactions...</div>
+            </div>
+          ) : history.length === 0 ? (
+            <div className="empty-state">
+                <div className="empty-icon">💸</div>
+                <div className="empty-text">No outgoing transactions yet.</div>
+            </div>
+          ) : (
+            <div className="table-container">
+              <table>
+                <thead><tr><th>#</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead>
+                <tbody>
+                  {history.slice(0, 10).map(tx => (
+                    <tr key={tx.id}>
+                      <td>{tx.id}</td>
+                      <td>{formatINR(tx.amount)}</td>
+                      <td><span className={`status-badge status-${tx.status?.toLowerCase()}`}>{tx.status}</span></td>
+                      <td>{new Date(tx.created_at).toLocaleDateString("en-IN")}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
     </div>
