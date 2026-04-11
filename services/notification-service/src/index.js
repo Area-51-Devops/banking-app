@@ -50,25 +50,6 @@ async function markProcessed(eventId) {
 }
 
 // ──────────────────────────────────────────────
-// Build user-friendly notification message
-// ──────────────────────────────────────────────
-function buildNotification(eventType, payload) {
-  const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(n);
-  const amt = payload.amount ? fmt(payload.amount) : '';
-
-  const templates = {
-    TransactionCompleted: { userId: payload.userId || payload.fromAccountId, msg: `Transfer of ${amt} completed successfully. Transaction #${payload.transactionId}` },
-    TransactionFlagged:   { userId: payload.userId || payload.fromAccountId, msg: `Your transfer of ${amt} is under fraud review. Transaction #${payload.transactionId}` },
-    FraudRejected:        { userId: payload.userId || payload.fromAccountId, msg: `Your transfer of ${amt} was blocked by fraud detection and reversed. Transaction #${payload.transactionId}` },
-    FraudApproved:        { userId: payload.userId || payload.fromAccountId, msg: `Your transfer of ${amt} passed fraud review and is complete. Transaction #${payload.transactionId}` },
-    LoanApproved:         { userId: payload.userId, msg: `🎉 Your loan of ${amt} has been approved and credited to your savings account!` },
-    LoanRejected:         { userId: payload.userId, msg: `❌ Your loan application for ${amt} was rejected.` },
-    PaymentCompleted:     { userId: payload.userId, msg: `Bill payment of ${amt} to ${payload.billerName || payload.billerCode} completed.` }
-  };
-  return templates[eventType] || null;
-}
-
-// ──────────────────────────────────────────────
 // MQ Consumer
 // ──────────────────────────────────────────────
 async function startConsumer(channel) {
@@ -94,13 +75,50 @@ async function startConsumer(channel) {
         return;
       }
 
-      const notif = buildNotification(eventType, raw);
-      if (notif && notif.userId) {
-        await pool.execute(
-          'INSERT INTO notifications (user_id, event_type, message) VALUES (?,?,?)',
-          [notif.userId, eventType, notif.msg]
-        );
-        logger.info({ eventType, userId: notif.userId }, 'Notification stored');
+      const fmt = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(n);
+      const amt = raw.amount ? fmt(raw.amount) : '';
+      const notifs = [];
+
+      switch (eventType) {
+        case 'TransactionCompleted':
+          notifs.push({ userId: raw.userId || raw.fromAccountId, msg: `Transfer of ${amt} completed successfully. Transaction #${raw.transactionId}` });
+          if (raw.toAccountId) {
+            const [rows] = await pool.execute('SELECT user_id FROM accounts WHERE id=?', [raw.toAccountId]);
+            if (rows.length > 0) notifs.push({ userId: rows[0].user_id, msg: `You received ${amt} in your account. Transaction #${raw.transactionId}` });
+          }
+          break;
+        case 'TransactionFlagged':
+          notifs.push({ userId: raw.userId || raw.fromAccountId, msg: `Your transfer of ${amt} is under fraud review. Transaction #${raw.transactionId}` });
+          break;
+        case 'FraudRejected':
+          notifs.push({ userId: raw.userId || raw.fromAccountId, msg: `Your transfer of ${amt} was blocked by fraud detection and reversed. Transaction #${raw.transactionId}` });
+          break;
+        case 'FraudApproved':
+          notifs.push({ userId: raw.userId || raw.fromAccountId, msg: `Your transfer of ${amt} passed fraud review and is complete. Transaction #${raw.transactionId}` });
+          if (raw.toAccountId) {
+            const [rows] = await pool.execute('SELECT user_id FROM accounts WHERE id=?', [raw.toAccountId]);
+            if (rows.length > 0) notifs.push({ userId: rows[0].user_id, msg: `You received ${amt} in your account. Transaction #${raw.transactionId}` });
+          }
+          break;
+        case 'LoanApproved':
+          notifs.push({ userId: raw.userId, msg: `🎉 Your loan of ${amt} has been approved and credited to your savings account!` });
+          break;
+        case 'LoanRejected':
+          notifs.push({ userId: raw.userId, msg: `❌ Your loan application for ${amt} was rejected.` });
+          break;
+        case 'PaymentCompleted':
+          notifs.push({ userId: raw.userId, msg: `Bill payment of ${amt} to ${raw.billerName || raw.billerCode} completed.` });
+          break;
+      }
+
+      for (const notif of notifs) {
+        if (notif.userId) {
+          await pool.execute(
+            'INSERT INTO notifications (user_id, event_type, message) VALUES (?,?,?)',
+            [notif.userId, eventType, notif.msg]
+          );
+          logger.info({ eventType, userId: notif.userId }, 'Notification stored');
+        }
       }
 
       await markProcessed(eventId);
