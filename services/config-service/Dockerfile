@@ -6,6 +6,9 @@ RUN npm install --production
 COPY config-service/src ./src
 COPY shared ./shared
 EXPOSE 3008
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 `
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
   CMD wget -qO- http://localhost:3008/health/startup || exit 1
 CMD ["node", "src/index.js"]
+
+
+
