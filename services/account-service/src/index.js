@@ -115,6 +115,21 @@ app.get('/accounts/user/:userId', async (req, res, next) => {
   }
 });
 
+// ── Lookup Account by Account Number ───────────
+// Used by the Transfer UI so users type ACC... instead of raw DB IDs
+app.get('/accounts/lookup', async (req, res, next) => {
+  try {
+    const { accountNumber } = req.query;
+    if (!accountNumber) return next(createError(400, 'VALIDATION_ERROR', 'accountNumber query param required'));
+    const [rows] = await pool.execute(
+      'SELECT id, account_number, account_type, balance, user_id FROM accounts WHERE account_number = ?',
+      [accountNumber.trim()]
+    );
+    if (rows.length === 0) return next(createError(404, 'ACCOUNT_NOT_FOUND', 'No account found with that account number'));
+    res.json({ success: true, account: rows[0] });
+  } catch (err) { next(err); }
+});
+
 // ── Get Single Account ─────────────────────────
 app.get('/accounts/:id', async (req, res, next) => {
   try {
