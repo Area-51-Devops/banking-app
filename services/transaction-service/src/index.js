@@ -459,7 +459,7 @@ app.get('/transactions', async (req, res, next) => {
          FROM transactions t
          LEFT JOIN accounts a1 ON t.from_account_id = a1.id
          LEFT JOIN accounts a2 ON t.to_account_id = a2.id
-         WHERE t.from_account_id=? OR t.to_account_id=? 
+         WHERE t.from_account_id=? OR (t.to_account_id=? AND t.status='SUCCESS') 
          ORDER BY t.created_at DESC LIMIT 50`,
         [accountId, accountId]
       );
