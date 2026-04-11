@@ -10,9 +10,13 @@ const { logger }              = require('../shared/logger');
 const { requestIdMiddleware }  = require('../shared/requestId');
 const { errorMiddleware, createError } = require('../shared/errorMiddleware');
 
-const PORT     = process.env.PORT   || 3005;
-const MQ_URL   = process.env.MQ_URL || 'amqp://rabbitmq';
+const PORT        = process.env.PORT            || 3005;
+const MQ_URL      = process.env.MQ_URL          || 'amqp://rabbitmq';
+const ACCOUNT_SVC = process.env.ACCOUNT_SVC_URL || 'http://account-service:3002';
 const EXCHANGE = 'banking_events';
+
+const axios = require('axios');
+const accountClient = axios.create({ baseURL: ACCOUNT_SVC, timeout: 10000 });
 
 let pool;
 let mqChannel;
@@ -70,6 +74,31 @@ app.get('/health/liveness',  async (req, res, next) => {
 app.get('/health/readiness', (req, res) => res.json({ status: isStarted ? 'READY' : 'NOT_READY', service: 'loan-service' }));
 app.get('/health',           (req, res) => res.json({ status: 'UP', service: 'loan-service' }));
 
+const jwt = require('jsonwebtoken');
+const JWT_SECRET = process.env.JWT_SECRET || 'nexus_banking_secret';
+
+const authMiddleware = (req, res, next) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return next(createError(401, 'UNAUTHORIZED', 'Missing or invalid authorization header'));
+    }
+    const token = authHeader.split(' ')[1];
+    req.user = jwt.verify(token, JWT_SECRET);
+    next();
+  } catch (err) {
+    next(createError(401, 'INVALID_TOKEN', 'Token is invalid or expired'));
+  }
+};
+
+const adminMiddleware = (req, res, next) => {
+  if (req.user && req.user.role === 'ADMIN') {
+    next();
+  } else {
+    next(createError(403, 'FORBIDDEN', 'Requires admin privileges'));
+  }
+};
+
 // ── EMI Calculator ─────────────────────────────
 app.post('/loans/emi', (req, res, next) => {
   const { amount, tenureMonths, interestRate } = req.body;
@@ -91,10 +120,12 @@ app.post('/loans/emi', (req, res, next) => {
 });
 
 // ── Apply for Loan ─────────────────────────────
-app.post('/loans', async (req, res, next) => {
+app.post('/loans', authMiddleware, async (req, res, next) => {
   const { userId, amount, tenureMonths = 12, interestRate = 10 } = req.body;
-  const log = logger.child({ requestId: req.requestId, userId, endpoint: 'apply-loan' });
-  if (!userId || !amount) return next(createError(400, 'VALIDATION_ERROR', 'userId and amount are required'));
+  // Fallback to token userId if not provided in body (safeguard)
+  const actualUserId = userId || req.user.userId;
+  const log = logger.child({ requestId: req.requestId, userId: actualUserId, endpoint: 'apply-loan' });
+  if (!actualUserId || !amount) return next(createError(400, 'VALIDATION_ERROR', 'userId and amount are required'));
 
   const emi = calculateEmi(Number(amount), Number(tenureMonths), Number(interestRate));
 
@@ -103,14 +134,14 @@ app.post('/loans', async (req, res, next) => {
     await conn.beginTransaction();
     const [result] = await conn.execute(
       'INSERT INTO loans (user_id, amount, tenure_months, interest_rate, emi_amount, status) VALUES (?,?,?,?,?,?)',
-      [userId, amount, tenureMonths, interestRate, emi, 'PENDING']
+      [actualUserId, amount, tenureMonths, interestRate, emi, 'PENDING']
     );
     const loanId = result.insertId;
 
     // Write Outbox event for notification
     await conn.execute(
       "INSERT INTO outbox_events (event_type, aggregate_id, payload, status) VALUES ('LoanApplicationReceived',?,?,'UNPUBLISHED')",
-      [String(loanId), JSON.stringify({ loanId, userId, amount, tenureMonths, interestRate, emi })]
+      [String(loanId), JSON.stringify({ loanId, userId: actualUserId, amount, tenureMonths, interestRate, emi })]
     );
     await conn.commit();
     log.info({ loanId }, 'Loan application created');
@@ -121,9 +152,11 @@ app.post('/loans', async (req, res, next) => {
 });
 
 // ── Approve/Reject Loan (admin action) ─────────
-app.patch('/loans/:id/status', async (req, res, next) => {
+app.patch('/loans/:id/status', authMiddleware, adminMiddleware, async (req, res, next) => {
   const { status } = req.body;
-  const log = logger.child({ requestId: req.requestId, loanId: req.params.id });
+  const adminUserId = req.user.userId;
+  const log = logger.child({ requestId: req.requestId, loanId: req.params.id, adminUserId });
+
   if (!['APPROVED','REJECTED'].includes(status)) {
     return next(createError(400, 'VALIDATION_ERROR', "status must be 'APPROVED' or 'REJECTED'"));
   }
@@ -131,28 +164,101 @@ app.patch('/loans/:id/status', async (req, res, next) => {
   const conn = await pool.getConnection();
   try {
     await conn.beginTransaction();
-    const [rows] = await conn.execute('SELECT * FROM loans WHERE id=?', [req.params.id]);
+    // SKIP LOCKED to avoid multiple admins processing the same loan simultaneously
+    const [rows] = await conn.execute('SELECT * FROM loans WHERE id=? FOR UPDATE SKIP LOCKED', [req.params.id]);
     if (rows.length === 0) { await conn.rollback(); return next(createError(404, 'LOAN_NOT_FOUND', 'Loan not found')); }
+    
     const loan = rows[0];
+    if (loan.status !== 'PENDING') {
+      await conn.rollback(); 
+      return next(createError(400, 'INVALID_STATE', `Loan is already ${loan.status} and cannot be modified further`));
+    }
 
-    await conn.execute("UPDATE loans SET status=?, updated_at=NOW() WHERE id=?", [status, req.params.id]);
+    await conn.execute("UPDATE loans SET status=?, updated_by=?, updated_at=NOW() WHERE id=?", 
+      [status, adminUserId, req.params.id]
+    );
 
     if (status === 'APPROVED') {
+      // ── Disburse loan amount into user's primary savings account ──────
+      // Fetch the user's first savings account
+      let userAccountId;
+      try {
+        const accResp = await accountClient.get(`/accounts/user/${loan.user_id}`);
+        const accounts = accResp.data.accounts || [];
+        const savingsAcc = accounts.find(a => a.account_type === 'SAVINGS') || accounts[0];
+        if (!savingsAcc) throw new Error('No account found for this user');
+        userAccountId = savingsAcc.id;
+
+        // Credit the loan amount into the user's account
+        await accountClient.post(
+          `/accounts/${userAccountId}/credit`,
+          { amount: loan.amount },
+          { headers: { 'idempotency-key': `loan-disburse:${loan.id}` } }
+        );
+        log.info({ loanId: loan.id, userId: loan.user_id, amount: loan.amount, accountId: userAccountId }, 'Loan amount disbursed to user account');
+      } catch (disburseErr) {
+        // Rollback the loan approval if disbursement fails
+        await conn.rollback();
+        log.error({ err: disburseErr.message, loanId: loan.id }, 'Disbursement failed — rolling back loan approval');
+        return next(createError(500, 'DISBURSEMENT_FAILED', 'Loan approved but disbursement to account failed. Please retry.'));
+      }
+
       await conn.execute(
         "INSERT INTO outbox_events (event_type, aggregate_id, payload, status) VALUES ('LoanApproved',?,?,'UNPUBLISHED')",
-        [String(loan.id), JSON.stringify({ loanId: loan.id, userId: loan.user_id, amount: loan.amount, emi: loan.emi_amount })]
+        [String(loan.id), JSON.stringify({ loanId: loan.id, userId: loan.user_id, amount: loan.amount, emi: loan.emi_amount, accountId: userAccountId })]
       );
     }
     await conn.commit();
-    log.info({ status }, 'Loan status updated');
+    log.info({ status }, 'Loan status updated securely');
     res.json({ success: true, loanId: req.params.id, status });
   } catch (err) {
     await conn.rollback(); next(err);
   } finally { conn.release(); }
 });
 
+// ── Get All Loans (admin action, paginated) ────
+app.get('/loans/all', authMiddleware, adminMiddleware, async (req, res, next) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 10));
+    const offset = (page - 1) * limit;
+    
+    let query = 'SELECT * FROM loans';
+    let countQuery = 'SELECT COUNT(*) as total FROM loans';
+    const params = [];
+
+    // Optional status filter
+    if (req.query.status && ['PENDING','APPROVED','REJECTED'].includes(req.query.status)) {
+      query += ' WHERE status = ?';
+      countQuery += ' WHERE status = ?';
+      params.push(req.query.status);
+    }
+
+    query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    
+    const [loans] = await pool.execute(query, [...params, String(limit), String(offset)]);
+    const [countRes] = await pool.execute(countQuery, params);
+    
+    res.json({ 
+      success: true, 
+      loans,
+      pagination: {
+        total: countRes[0].total,
+        page,
+        limit,
+        pages: Math.ceil(countRes[0].total / limit)
+      }
+    });
+  } catch (err) { next(err); }
+});
+
 // ── Get Loans by User ──────────────────────────
-app.get('/loans/user/:userId', async (req, res, next) => {
+app.get('/loans/user/:userId', authMiddleware, async (req, res, next) => {
+  // Ensure users can only fetch their own loans (unless admin)
+  if (req.user.role !== 'ADMIN' && String(req.user.userId) !== String(req.params.userId)) {
+    return next(createError(403, 'FORBIDDEN', 'Access denied'));
+  }
+
   try {
     const [rows] = await pool.execute('SELECT * FROM loans WHERE user_id=? ORDER BY created_at DESC', [req.params.userId]);
     res.json({ success: true, loans: rows });

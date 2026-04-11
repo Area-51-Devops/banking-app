@@ -61,7 +61,7 @@ function buildNotification(eventType, payload) {
     TransactionFlagged:   { userId: payload.userId || payload.fromAccountId, msg: `Your transfer of ${amt} is under fraud review. Transaction #${payload.transactionId}` },
     FraudRejected:        { userId: payload.userId || payload.fromAccountId, msg: `Your transfer of ${amt} was blocked by fraud detection and reversed. Transaction #${payload.transactionId}` },
     FraudApproved:        { userId: payload.userId || payload.fromAccountId, msg: `Your transfer of ${amt} passed fraud review and is complete. Transaction #${payload.transactionId}` },
-    LoanApproved:         { userId: payload.userId, msg: `Your loan application for ${amt} has been approved!` },
+    LoanApproved:         { userId: payload.userId, msg: `🎉 Your loan of ${amt} has been approved and credited to your savings account!` },
     PaymentCompleted:     { userId: payload.userId, msg: `Bill payment of ${amt} to ${payload.billerName || payload.billerCode} completed.` }
   };
   return templates[eventType] || null;

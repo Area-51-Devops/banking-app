@@ -99,8 +99,9 @@ services:
       DB_NAME:     banking_db
       REDIS_HOST:  redis
       REDIS_PORT:  6379
-      JWT_SECRET:  banking_jwt_secret_change_in_prod
+      JWT_SECRET:  nexus_banking_secret
       JWT_EXPIRE:  8h
+      ACCOUNT_SVC_URL: http://account-service:3002
     depends_on:
       mysql:
         condition: service_healthy
@@ -266,10 +267,14 @@ services:
       DB_PASS:     rootpassword
       DB_NAME:     banking_db
       MQ_URL:      amqp://rabbitmq
+      JWT_SECRET:  nexus_banking_secret
+      ACCOUNT_SVC_URL: http://account-service:3002
     depends_on:
       mysql:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      account-service:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3005/health/startup"]

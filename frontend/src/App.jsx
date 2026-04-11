@@ -9,15 +9,34 @@ import Transfer      from "./pages/Transfer";
 import Loans         from "./pages/Loans";
 import BillPay       from "./pages/BillPay";
 import Notifications from "./pages/Notifications";
+import AdminDashboard from "./pages/AdminDashboard";
 
 function PrivateRoute({ children }) {
-  const { isLoggedIn } = useAuth();
-  return isLoggedIn ? children : <Navigate to="/login" replace />;
+  const { user, isLoggedIn } = useAuth();
+  if (!isLoggedIn) return <Navigate to="/login" replace />;
+  // Admins should not access customer banking pages
+  if (user?.role === 'ADMIN') return <Navigate to="/admin" replace />;
+  return children;
+}
+
+function AdminRoute({ children }) {
+  const { user, isLoggedIn } = useAuth();
+  if (!isLoggedIn) return <Navigate to="/login" replace />;
+  if (user?.role !== 'ADMIN') return <Navigate to="/dashboard" replace />;
+  return children;
 }
 
 function PublicRoute({ children }) {
-  const { isLoggedIn } = useAuth();
-  return !isLoggedIn ? children : <Navigate to="/dashboard" replace />;
+  const { user, isLoggedIn } = useAuth();
+  if (!isLoggedIn) return children;
+  // Send admins to admin portal, users to their dashboard
+  return <Navigate to={user?.role === 'ADMIN' ? '/admin' : '/dashboard'} replace />;
+}
+
+function RoleHome() {
+  const { user, isLoggedIn } = useAuth();
+  if (!isLoggedIn) return <Navigate to="/login" replace />;
+  return <Navigate to={user?.role === 'ADMIN' ? '/admin' : '/dashboard'} replace />;
 }
 
 function AppRoutes() {
@@ -26,7 +45,7 @@ function AppRoutes() {
       <Navbar />
       <main className="main-content">
         <Routes>
-          <Route path="/"        element={<Navigate to="/dashboard" replace />} />
+          <Route path="/" element={<RoleHome />} />
           <Route path="/login"   element={<PublicRoute><Login /></PublicRoute>} />
           <Route path="/register" element={<PublicRoute><Register /></PublicRoute>} />
           <Route path="/dashboard"     element={<PrivateRoute><Dashboard /></PrivateRoute>} />
@@ -34,6 +53,7 @@ function AppRoutes() {
           <Route path="/loans"         element={<PrivateRoute><Loans /></PrivateRoute>} />
           <Route path="/bill-pay"      element={<PrivateRoute><BillPay /></PrivateRoute>} />
           <Route path="/notifications" element={<PrivateRoute><Notifications /></PrivateRoute>} />
+          <Route path="/admin"         element={<AdminRoute><AdminDashboard /></AdminRoute>} />
           <Route path="*"        element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </main>

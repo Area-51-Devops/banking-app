@@ -15,7 +15,7 @@ export default function Loans() {
   const loadLoans = () => {
     API.loan.get(`/loans/user/${user.id}`)
       .then(r => setLoans(r.data.loans || []))
-      .catch(() => {});
+      .catch(err => addToast(err.response?.data?.error?.message || "Failed to load your loans.", "error"));
   };
 
   useEffect(() => { if (user) loadLoans(); }, [user]);

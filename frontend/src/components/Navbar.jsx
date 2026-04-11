@@ -1,4 +1,4 @@
-﻿import { useAuth } from "../contexts/AuthContext";
+import { useAuth } from "../contexts/AuthContext";
 import { useNavigate, NavLink } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { API } from "../api";
@@ -8,6 +8,9 @@ export default function Navbar() {
   const navigate = useNavigate();
   const [unread, setUnread] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // Admin users have their own portal layout — no banking navbar needed
+  if (isLoggedIn && user?.role === 'ADMIN') return null;
 
   useEffect(() => {
     if (!user) return;

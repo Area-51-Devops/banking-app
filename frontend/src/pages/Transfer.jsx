@@ -63,10 +63,9 @@ export default function Transfer() {
       }
       setForm({ ...form, amount: "", toAccountId: "" }); // Reset specific fields
 
-      // Refresh history quietly
-      const accs = accounts.map(a => a.id);
-      if (accs[0]) {
-        API.tx.get(`/transactions?accountId=${accs[0]}`).then(r => setHistory(r.data.transactions || []));
+      // Refresh history against the correct selected account
+      if (form.fromAccountId) {
+        API.tx.get(`/transactions?accountId=${form.fromAccountId}`).then(r => setHistory(r.data.transactions || []));
       }
     } catch (err) {
       addToast(err.response?.data?.error?.message || "Transfer failed to process.", "error");

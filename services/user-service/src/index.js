@@ -14,7 +14,7 @@ const { requestIdMiddleware } = require('../shared/requestId');
 const { errorMiddleware, createError } = require('../shared/errorMiddleware');
 
 const PORT       = process.env.PORT       || 3001;
-const JWT_SECRET = process.env.JWT_SECRET || 'banking_jwt_secret_change_in_prod';
+const JWT_SECRET = process.env.JWT_SECRET || 'nexus_banking_secret';
 const JWT_EXPIRE = process.env.JWT_EXPIRE || '8h';
 const SALT_ROUNDS = 10;
 
@@ -112,8 +112,9 @@ app.get('/health', (req, res) => {
   res.json({ status: 'UP', service: 'user-service' });
 });
 
-const axios     = require('axios');
-const axiosRetry = require('axios-retry').default || require('axios-retry');
+const axios = require('axios');
+const axiosRetryModule = require('axios-retry');
+const axiosRetry = axiosRetryModule.default || axiosRetryModule;
 
 // Configure static axios client for internal calls
 const internalClient = axios.create({ timeout: 5000 });
@@ -136,14 +137,17 @@ app.post('/users/register', async (req, res, next) => {
     );
     userId = result.insertId;
 
-    try {
-      // Synchronously create a default savings account for the new user, with retries and timeout
-      const accountServiceUrl = process.env.ACCOUNT_SVC_URL || 'http://account-service:3002';
-      await internalClient.post(`${accountServiceUrl}/accounts`, { userId, accountType: 'SAVINGS' });
-    } catch (accountErr) {
-      log.error({ err: accountErr.message, userId }, 'Failed to create initial account, rolling back user registration');
-      await pool.execute('DELETE FROM users WHERE id = ?', [userId]);
-      return next(createError(500, 'ACCOUNT_CREATION_FAILED', 'Failed to properly set up user account. Please try again later.'));
+    // ADMIN users do not need a bank account
+    const [userRows] = await pool.execute('SELECT role FROM users WHERE id = ?', [userId]);
+    if (userRows.length > 0 && userRows[0].role !== 'ADMIN') {
+      try {
+        const accountServiceUrl = process.env.ACCOUNT_SVC_URL || 'http://account-service:3002';
+        await internalClient.post(`${accountServiceUrl}/accounts`, { userId, accountType: 'SAVINGS' });
+      } catch (accountErr) {
+        log.error({ err: accountErr.message, userId }, 'Failed to create initial account, rolling back user registration');
+        await pool.execute('DELETE FROM users WHERE id = ?', [userId]);
+        return next(createError(500, 'ACCOUNT_CREATION_FAILED', 'Failed to properly set up user account. Please try again later.'));
+      }
     }
 
     log.info({ userId }, 'User registered and account created');
@@ -177,7 +181,7 @@ app.post('/users/login', async (req, res, next) => {
     }
 
     const token = jwt.sign(
-      { userId: user.id, username: user.username },
+      { userId: user.id, username: user.username, role: user.role },
       JWT_SECRET,
       { expiresIn: JWT_EXPIRE }
     );
@@ -189,7 +193,7 @@ app.post('/users/login', async (req, res, next) => {
     res.json({
       success: true,
       token,
-      user: { id: user.id, username: user.username, email: user.email }
+      user: { id: user.id, username: user.username, email: user.email, role: user.role }
     });
   } catch (err) {
     next(err);
@@ -200,7 +204,7 @@ app.post('/users/login', async (req, res, next) => {
 app.get('/users/:id', async (req, res, next) => {
   try {
     const [rows] = await pool.execute(
-      'SELECT id, username, email, created_at FROM users WHERE id = ?',
+      'SELECT id, username, email, role, created_at FROM users WHERE id = ?',
       [req.params.id]
     );
     if (rows.length === 0) {

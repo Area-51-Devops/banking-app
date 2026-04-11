@@ -92,10 +92,10 @@ app.post('/accounts', async (req, res, next) => {
 
     const accountNumber = 'ACC' + Date.now() + Math.floor(Math.random() * 1000);
     const [result] = await pool.execute(
-      'INSERT INTO accounts (user_id, account_number, account_type, balance) VALUES (?, ?, ?, 0.00)',
+      'INSERT INTO accounts (user_id, account_number, account_type, balance) VALUES (?, ?, ?, 2500.00)',
       [userId, accountNumber, accountType]
     );
-    log.info({ userId, accountId: result.insertId }, 'Account created');
+    log.info({ userId, accountId: result.insertId }, 'Account created with welcome bonus');
     res.status(201).json({ success: true, accountId: result.insertId, accountNumber });
   } catch (err) {
     next(err);

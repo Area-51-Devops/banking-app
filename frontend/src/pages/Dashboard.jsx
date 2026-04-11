@@ -10,6 +10,7 @@ export default function Dashboard() {
   const [accounts, setAccounts]   = useState([]);
   const [summary, setSummary]     = useState(null);
   const [txHistory, setTxHistory] = useState([]);
+  const [activeLoans, setActiveLoans] = useState([]);
   const [loading, setLoading]     = useState(true);
   
   // Modal state
@@ -22,13 +23,16 @@ export default function Dashboard() {
   const load = async () => {
     setPageError(false);
     try {
-      const [accRes, sumRes] = await Promise.all([
+      const [accRes, sumRes, loanRes] = await Promise.all([
         API.account.get(`/accounts/user/${user.id}`),
-        API.report.get(`/reports/summary/${user.id}`)
+        API.report.get(`/reports/summary/${user.id}`),
+        API.loan.get(`/loans/user/${user.id}`)
       ]);
       setAccounts(accRes.data.accounts || []);
       setSummary(sumRes.data.summary);
       setTxHistory(sumRes.data.summary?.recentTransactions || []);
+      // Only show approved loans on dashboard
+      setActiveLoans((loanRes.data.loans || []).filter(l => l.status === 'APPROVED'));
     } catch (err) {
       console.error("Dashboard load error", err);
       setPageError(true);
@@ -137,6 +141,22 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {activeLoans.length > 0 && (
+        <>
+          <h2 className="section-title">Active Loans</h2>
+          <div className="grid">
+            {activeLoans.map(loan => (
+              <div key={loan.id} className="surface-card account-card">
+                <div className="account-type-badge loan-badge">LOAN</div>
+                <div className="account-number">Principal: {formatINR(loan.amount)}</div>
+                <div className="balance-amount">{loan.tenure_months} mo • {Number(loan.interest_rate)}%</div>
+                <div className="text-muted" style={{marginTop: "8px"}}>EMI: {formatINR(loan.emi_amount)}/mo</div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
 
       <h2 className="section-title">Recent Transactions</h2>
       <div className="surface-card">

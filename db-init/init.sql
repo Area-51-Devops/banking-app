@@ -9,9 +9,15 @@ CREATE TABLE IF NOT EXISTS users (
     username    VARCHAR(255) UNIQUE NOT NULL,
     password    VARCHAR(255) NOT NULL,          -- bcrypt hashed
     email       VARCHAR(255) NOT NULL,
+    role        ENUM('USER', 'ADMIN') DEFAULT 'USER',
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
+
+-- Seed initial admin user (see README for credentials)
+-- INSERT IGNORE ensures idempotency — safe to re-run
+INSERT IGNORE INTO users (id, username, password, email, role) 
+VALUES (1, 'admin', '$2a$10$DFdCs1/O.mmjYSXVTUZiNJAFTWCeJuwmuKmko/yKVefJ2MEN', 'admin@nexus.com', 'ADMIN');
 
 -- ============================================================
 -- ACCOUNTS
@@ -93,9 +99,11 @@ CREATE TABLE IF NOT EXISTS loans (
     interest_rate DECIMAL(5,2) NOT NULL DEFAULT 10.00,
     emi_amount   DECIMAL(15,2),
     status       ENUM('PENDING','APPROVED','REJECTED') DEFAULT 'PENDING',
+    updated_by   INT DEFAULT NULL,
     created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (updated_by) REFERENCES users(id),
     INDEX idx_loans_user_id (user_id),
     INDEX idx_loans_status  (status)
 );
