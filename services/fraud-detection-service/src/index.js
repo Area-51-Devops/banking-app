@@ -4,6 +4,7 @@ require('dotenv').config();
 const express = require('express');
 const cors    = require('cors');
 const amqp    = require('amqplib');
+const mysql   = require('mysql2/promise');
 
 const { logger }              = require('../shared/logger');
 const { requestIdMiddleware }  = require('../shared/requestId');
@@ -18,6 +19,7 @@ const EXCHANGE   = 'banking_events';
 const DEFAULT_FRAUD_THRESHOLD = 500000; // ₹5,00,000 fallback
 let fraudThreshold = DEFAULT_FRAUD_THRESHOLD;
 let mqChannel;
+let pool;
 let isStarted = false;
 
 const configClient = createHttpClient(CONFIG_SVC);
@@ -51,8 +53,7 @@ async function refreshFraudThreshold() {
 }
 
 // ──────────────────────────────────────────────
-// MQ Consumer — TransactionFlagged
-// Rule: amount >= threshold → FraudRejected, else → FraudApproved
+// MQ Consumer — TransactionFlagged Logger
 // ──────────────────────────────────────────────
 async function startConsumer(channel) {
   await channel.assertExchange(EXCHANGE, 'topic', { durable: true });
@@ -66,25 +67,39 @@ async function startConsumer(channel) {
       const { transactionId, amount } = event;
       const log = logger.child({ transactionId, amount });
 
-      // Apply fraud rule
-      const decision = Number(amount) >= fraudThreshold ? 'REJECTED' : 'APPROVED';
-      log.info({ decision, threshold: fraudThreshold }, 'Fraud decision made');
-
-      const decisionEvent = JSON.stringify({ transactionId, decision, amount, processedAt: new Date().toISOString() });
-      const routingKey = decision === 'APPROVED' ? 'FraudApproved' : 'FraudRejected';
-
-      channel.publish(EXCHANGE, routingKey, Buffer.from(decisionEvent), { persistent: true });
-      log.info({ routingKey }, 'Fraud decision event emitted');
-
+      // Identify breach metric but take no definitive action (Leave to Admin)
+      const isBreach = Number(amount) >= fraudThreshold;
+      const metadata = JSON.stringify({ isBreach, threshold: fraudThreshold, processedAt: new Date().toISOString() });
+      
+      await pool.execute(
+        'INSERT INTO fraud_analysis_logs (transaction_id, amount, metadata) VALUES (?, ?, ?)',
+        [transactionId, amount, metadata]
+      );
+      
+      log.info('Flagged transaction logged to fraud_analysis_logs successfully');
       channel.ack(msg);
     } catch (err) {
-      logger.error({ err: err.message }, 'Error processing flagged transaction');
+      logger.error({ err: err.message }, 'Error persisting fraud log');
       channel.nack(msg, false, true); // requeue
     }
   });
 }
 
 async function init() {
+  pool = await connectWithRetry(async () => {
+    const p = mysql.createPool({
+      host:              process.env.DB_HOST || 'mysql',
+      user:              process.env.DB_USER || 'root',
+      password:          process.env.DB_PASS || 'rootpassword',
+      database:          process.env.DB_NAME || 'banking_db',
+      waitForConnections: true,
+      connectionLimit:   5,
+      queueLimit:        0
+    });
+    await p.execute('SELECT 1');
+    return p;
+  }, 'MySQL');
+
   const mqConn = await connectWithRetry(async () => {
     const conn = await amqp.connect(MQ_URL);
     mqChannel   = await conn.createChannel();

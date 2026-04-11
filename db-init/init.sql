@@ -45,16 +45,22 @@ CREATE TABLE IF NOT EXISTS transactions (
     from_account_id INT,
     to_account_id   INT,
     amount          DECIMAL(15,2) NOT NULL,
-    status          VARCHAR(50)  NOT NULL DEFAULT 'INITIATED',
-    saga_state      VARCHAR(50)  NOT NULL DEFAULT 'INITIATED',
+    status          ENUM('INITIATED','DEBITED','FLAGGED','SUCCESS','FAILED') NOT NULL DEFAULT 'INITIATED',
+    saga_state      ENUM('INITIATED','DEBITED','FLAGGED','SUCCESS','FAILED') NOT NULL DEFAULT 'INITIATED',
+    reviewed_by     INT DEFAULT NULL,
+    reviewed_at     DATETIME DEFAULT NULL,
+    review_reason   VARCHAR(255) DEFAULT NULL,
     idempotency_key VARCHAR(255),
     request_id      VARCHAR(255),
     timeout_at      DATETIME,
     created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (reviewed_by) REFERENCES users(id),
     INDEX idx_transactions_status    (status),
     INDEX idx_transactions_saga_state (saga_state),
-    INDEX idx_transactions_idem_key  (idempotency_key)
+    INDEX idx_transactions_idem_key  (idempotency_key),
+    INDEX idx_transactions_created_at (created_at),
+    INDEX idx_transactions_amount    (amount)
 );
 
 -- ============================================================
@@ -139,6 +145,18 @@ CREATE TABLE IF NOT EXISTS notifications (
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
     INDEX idx_notifications_user_id (user_id),
     INDEX idx_notifications_is_read (is_read)
+);
+
+-- ============================================================
+-- FRAUD ANALYSIS LOGS
+-- ============================================================
+CREATE TABLE IF NOT EXISTS fraud_analysis_logs (
+    id             INT AUTO_INCREMENT PRIMARY KEY,
+    transaction_id INT NOT NULL,
+    amount         DECIMAL(15,2) NOT NULL,
+    flagged_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+    metadata       JSON,
+    INDEX idx_fraud_logs_tx (transaction_id)
 );
 
 -- ============================================================

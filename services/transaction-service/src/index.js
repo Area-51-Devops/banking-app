@@ -12,6 +12,8 @@ const { requestIdMiddleware }  = require('../shared/requestId');
 const { errorMiddleware, createError } = require('../shared/errorMiddleware');
 const { createHttpClient }     = require('../shared/httpClient');
 
+const { authMiddleware, adminMiddleware } = require('../shared/authMiddleware');
+
 const PORT         = process.env.PORT            || 3003;
 const ACCOUNT_SVC  = process.env.ACCOUNT_SVC_URL || 'http://account-service:3002';
 const CONFIG_SVC   = process.env.CONFIG_SVC_URL  || 'http://config-service:3008';
@@ -123,8 +125,9 @@ async function startOutboxPoller() {
 }
 
 // ──────────────────────────────────────────────
-// Saga Recovery Poller  (crash-safe timeout handling)
+// Saga Recovery Poller  (crash-safe timeout handling & SLA enforcement)
 // Finds transactions stuck in DEBITED where timeout_at < NOW()
+// OR transactions stuck in FLAGGED for more than 24 hours (Admin SLA breach)
 // Triggers compensation (credit back the from-account)
 // ──────────────────────────────────────────────
 async function startSagaRecoveryPoller() {
@@ -134,15 +137,17 @@ async function startSagaRecoveryPoller() {
       await conn.beginTransaction();
       const [stuckTxs] = await conn.execute(
         `SELECT * FROM transactions
-           WHERE saga_state = 'DEBITED' AND timeout_at < NOW()
+           WHERE (saga_state = 'DEBITED' AND timeout_at < NOW())
+              OR (saga_state = 'FLAGGED' AND created_at < DATE_SUB(NOW(), INTERVAL 24 HOUR))
            LIMIT 10 FOR UPDATE SKIP LOCKED`
       );
       if (stuckTxs.length === 0) { await conn.rollback(); conn.release(); return; }
 
-      // Mark as FAILED before releasing the lock
+      // Mark as FAILED (and set review reason if it was flagged) before releasing the lock
       const ids = stuckTxs.map(t => t.id);
       await conn.execute(
-        `UPDATE transactions SET saga_state='FAILED', status='FAILED', updated_at=NOW()
+        `UPDATE transactions SET saga_state='FAILED', status='FAILED', updated_at=NOW(),
+            review_reason = CASE WHEN saga_state = 'FLAGGED' THEN 'AUTO_REJECTED_SLA_BREACH' ELSE review_reason END
            WHERE id IN (${ids.map(() => '?').join(',')})`,
         ids
       );
@@ -358,7 +363,7 @@ app.post('/transfer', async (req, res, next) => {
           "UPDATE transactions SET saga_state='FLAGGED', status='FLAGGED', updated_at=NOW() WHERE id=?", [txId]
         );
         // Write to Outbox inside same transaction
-        const payload = JSON.stringify({ transactionId: txId, fromAccountId, toAccountId, amount, requestId });
+        const payload = JSON.stringify({ transactionId: txId, fromAccountId, toAccountId, amount, requestId, userId: req.body.userId || fromAccountId });
         await conn2.execute(
           "INSERT INTO outbox_events (event_type, aggregate_id, payload, status) VALUES ('TransactionFlagged', ?, ?, 'UNPUBLISHED')",
           [String(txId), payload]
@@ -468,6 +473,101 @@ app.get('/transactions', async (req, res, next) => {
     }
     res.json({ success: true, transactions: rows });
   } catch (err) { next(err); }
+});
+
+// ── Get Flagged Transactions (Admin only) ──────
+app.get('/transactions/flagged', authMiddleware, adminMiddleware, async (req, res, next) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 15;
+    const offset = (page - 1) * limit;
+
+    const [countRows] = await pool.execute("SELECT COUNT(*) as total FROM transactions WHERE status='FLAGGED'");
+    const total = countRows[0].total;
+
+    // SLA prioritization: Larger amounts OR older transactions float to top
+    const [rows] = await pool.execute(
+      `SELECT t.*, a1.user_id as from_user_id
+       FROM transactions t
+       LEFT JOIN accounts a1 ON t.from_account_id = a1.id
+       WHERE t.status = 'FLAGGED'
+       ORDER BY t.amount DESC, t.created_at ASC
+       LIMIT ? OFFSET ?`,
+      [String(limit), String(offset)]
+    );
+
+    res.json({
+      success: true,
+      transactions: rows,
+      pagination: { total, page, pages: Math.ceil(total / limit) }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Admin Review Fraud Flagged Transaction ─────
+app.patch('/transactions/:id/fraud-status', authMiddleware, adminMiddleware, async (req, res, next) => {
+  const txId = req.params.id;
+  const { status, reason } = req.body; // status: 'APPROVED' | 'REJECTED'
+  const adminId = req.user.userId;
+
+  if (!['APPROVED', 'REJECTED'].includes(status)) {
+    return next(createError(400, 'VALIDATION_ERROR', "status must be 'APPROVED' or 'REJECTED'"));
+  }
+
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // Idempotency: skip locked to avoid double review, ensuring it's still FLAGGED
+    const [txRows] = await conn.execute(
+      "SELECT * FROM transactions WHERE id=? AND status='FLAGGED' FOR UPDATE SKIP LOCKED",
+      [txId]
+    );
+
+    if (txRows.length === 0) {
+      await conn.rollback();
+      return res.status(409).json({ success: false, error: { message: 'Transaction already processed or not found in flagged state.' } });
+    }
+
+    const tx = txRows[0];
+    const eventType = status === 'APPROVED' ? 'FraudApproved' : 'FraudRejected';
+    
+    // Fetch sender's user_id for notification routing
+    const [accRows] = await conn.execute('SELECT user_id FROM accounts WHERE id=?', [tx.from_account_id]);
+    const senderUserId = accRows.length > 0 ? accRows[0].user_id : null;
+
+    const payload = JSON.stringify({ 
+      transactionId: txId, 
+      decision: status, 
+      amount: tx.amount, 
+      processedAt: new Date().toISOString(),
+      userId: senderUserId,
+      fromAccountId: tx.from_account_id,
+      toAccountId: tx.to_account_id
+    });
+
+    // Mark optimistic review directly - consumer handles final logic
+    await conn.execute(
+      "UPDATE transactions SET reviewed_by=?, reviewed_at=NOW(), review_reason=? WHERE id=?",
+      [adminId, reason || null, txId]
+    );
+
+    await conn.execute(
+      "INSERT INTO outbox_events (event_type, aggregate_id, payload, status) VALUES (?, ?, ?, 'UNPUBLISHED')",
+      [eventType, String(txId), payload]
+    );
+
+    await conn.commit();
+    logger.info({ txId, adminId, status }, 'Admin reviewed flagged transaction');
+    res.json({ success: true, message: `Transaction ${status.toLowerCase()} successfully.` });
+  } catch (err) {
+    await conn.rollback();
+    next(err);
+  } finally {
+    conn.release();
+  }
 });
 
 // ── Get Single Transaction ─────────────────────

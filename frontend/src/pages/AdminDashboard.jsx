@@ -7,6 +7,7 @@ import { API, formatINR } from "../api";
 const TABS = [
   { id: "overview",  label: "📊 Overview" },
   { id: "loans",     label: "💼 Loan Management" },
+  { id: "fraud",     label: "🛡️ Fraud Review" },
   { id: "users",     label: "👥 User Management" },
 ];
 
@@ -17,14 +18,16 @@ export default function AdminDashboard() {
 
   const [activeTab, setActiveTab]       = useState("overview");
   const [loans, setLoans]               = useState([]);
+  const [fraudTxs, setFraudTxs]         = useState([]);
   const [users, setUsers]               = useState([]);
   const [pagination, setPagination]     = useState({ page: 1, pages: 0, total: 0 });
   const [loanFilter, setLoanFilter]     = useState("ALL");
   const [loadingLoans, setLoadingLoans] = useState(false);
+  const [loadingFraud, setLoadingFraud] = useState(false);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [actionLoading, setActionLoading] = useState(null);
   const [usernameCache, setUsernameCache] = useState({});
-  const [stats, setStats]               = useState({ total: 0, pending: 0, approved: 0, rejected: 0 });
+  const [stats, setStats]               = useState({ total: 0, pending: 0, approved: 0, rejected: 0, flagged: 0 });
 
   // ── Fetch all loans (paginated + filtered) ──────────────────────────────
   const fetchLoans = useCallback(async (page = 1, filter = loanFilter) => {
@@ -64,20 +67,54 @@ export default function AdminDashboard() {
   // ── Fetch stats from all-loans endpoint ────────────────────────────────
   const fetchStats = useCallback(async () => {
     try {
-      const [all, pending, approved, rejected] = await Promise.all([
+      const [all, pending, approved, rejected, flagged] = await Promise.all([
         API.loan.get("/loans/all?limit=1"),
         API.loan.get("/loans/all?limit=1&status=PENDING"),
         API.loan.get("/loans/all?limit=1&status=APPROVED"),
         API.loan.get("/loans/all?limit=1&status=REJECTED"),
+        API.transaction.get("/transactions/flagged?limit=1")
       ]);
       setStats({
         total:    all.data.pagination.total,
         pending:  pending.data.pagination.total,
         approved: approved.data.pagination.total,
         rejected: rejected.data.pagination.total,
+        flagged:  flagged.data.pagination.total,
       });
     } catch { /* stats are non-critical */ }
   }, []);
+
+  // ── Fetch Fraud Transactions ───────────────────────────────────────────
+  const fetchFraudTxs = useCallback(async (page = 1) => {
+    setLoadingFraud(true);
+    try {
+      const r = await API.transaction.get(`/transactions/flagged?page=${page}&limit=15`);
+      const fetchedTxs = r.data.transactions || [];
+      setFraudTxs(fetchedTxs);
+      setPagination({
+        page: r.data.pagination.page,
+        pages: r.data.pagination.pages,
+        total: r.data.pagination.total,
+      });
+
+      // Resolve usernames for senders
+      const missing = [...new Set(fetchedTxs.map(t => t.from_user_id).filter(Boolean))].filter(id => !usernameCache[id]);
+      if (missing.length > 0) {
+        const newCache = { ...usernameCache };
+        await Promise.all(missing.map(async id => {
+          try {
+            const res = await API.user.get(`/users/${id}`);
+            newCache[id] = res.data.user.username;
+          } catch { newCache[id] = `User #${id}`; }
+        }));
+        setUsernameCache(newCache);
+      }
+    } catch (err) {
+      addToast(err.response?.data?.error?.message || "Failed to fetch fraud transactions", "error");
+    } finally {
+      setLoadingFraud(false);
+    }
+  }, [usernameCache, addToast]);
 
   // ── Fetch users ─────────────────────────────────────────────────────────
   const fetchUsers = useCallback(async () => {
@@ -91,6 +128,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     if (activeTab === "overview") fetchStats();
     if (activeTab === "loans") fetchLoans(1, loanFilter);
+    if (activeTab === "fraud") fetchFraudTxs(1);
     if (activeTab === "users") fetchUsers();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
@@ -110,6 +148,29 @@ export default function AdminDashboard() {
       fetchStats();
     } catch (err) {
       addToast(err.response?.data?.error?.message || "Failed to update loan.", "error");
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleFraudStatus = async (txId, newStatus) => {
+    const reason = newStatus === 'REJECTED' ? prompt("Please provide a reason for rejecting this flagged transaction (mandatory):") : null;
+    if (newStatus === 'REJECTED' && !reason) return addToast("A reason is mandatory for rejections.", "error");
+
+    setActionLoading(`fraud-${txId}`);
+    try {
+      await API.transaction.patch(`/transactions/${txId}/fraud-status`, { status: newStatus, reason });
+      addToast(`Transaction ${newStatus.toLowerCase()} successfully.`, "success");
+      // Remove it from the UI immediately as it is no longer FLAGGED
+      setFraudTxs(prev => prev.filter(t => t.id !== txId));
+      fetchStats();
+    } catch (err) {
+      const msg = err.response?.data?.error?.message || "Failed to update fraud status.";
+      addToast(msg, "error");
+      if (err.response?.status === 409) {
+        // If it was already processed concurrently
+        setFraudTxs(prev => prev.filter(t => t.id !== txId));
+      }
     } finally {
       setActionLoading(null);
     }
@@ -206,19 +267,28 @@ export default function AdminDashboard() {
               ))}
             </div>
 
-            <div style={{
-              background: "#161b27", border: "1px solid #2d3748", borderRadius: "12px", padding: "24px"
-            }}>
-              <h3 style={{ margin: "0 0 12px", color: "#a78bfa" }}>Quick Actions</h3>
-              <p style={{ color: "#64748b", margin: "0 0 16px" }}>
-                Jump directly to pending applications that need your review.
-              </p>
-              <button onClick={() => { setLoanFilter("PENDING"); setActiveTab("loans"); }} style={{
-                padding: "10px 20px", borderRadius: "8px", background: "#7c3aed",
-                border: "none", color: "#fff", fontWeight: 600, cursor: "pointer", fontSize: "0.9rem"
-              }}>
-                Review {stats.pending} Pending Loan{stats.pending !== 1 ? "s" : ""} →
-              </button>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "40px" }}>
+              <div style={{ background: "#161b27", border: "1px solid #2d3748", borderRadius: "12px", padding: "24px" }}>
+                <h3 style={{ margin: "0 0 12px", color: "#a78bfa" }}>Loan Applications</h3>
+                <p style={{ color: "#64748b", margin: "0 0 16px" }}>Jump to pending applications.</p>
+                <button onClick={() => { setLoanFilter("PENDING"); setActiveTab("loans"); }} style={{
+                  padding: "10px 20px", borderRadius: "8px", background: "#7c3aed",
+                  border: "none", color: "#fff", fontWeight: 600, cursor: "pointer", fontSize: "0.9rem"
+                }}>
+                  Review {stats.pending} Pending Loan{stats.pending !== 1 ? "s" : ""} →
+                </button>
+              </div>
+
+              <div style={{ background: "#161b27", border: "1px solid #2d3748", borderRadius: "12px", padding: "24px", borderTop: "3px solid #ef4444" }}>
+                <h3 style={{ margin: "0 0 12px", color: "#ef4444" }}>Fraud Review Queue</h3>
+                <p style={{ color: "#64748b", margin: "0 0 16px" }}>Transactions blocked by algorithms awaiting your decision.</p>
+                <button onClick={() => setActiveTab("fraud")} style={{
+                  padding: "10px 20px", borderRadius: "8px", background: "#ef4444",
+                  border: "none", color: "#fff", fontWeight: 600, cursor: "pointer", fontSize: "0.9rem"
+                }}>
+                  Review {stats.flagged} Flagged Transfer{stats.flagged !== 1 ? "s" : ""} →
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -330,6 +400,108 @@ export default function AdminDashboard() {
                 <button
                   disabled={pagination.page >= pagination.pages}
                   onClick={() => fetchLoans(pagination.page + 1, loanFilter)}
+                  style={{
+                    padding: "7px 18px", borderRadius: "6px", border: "1px solid #2d3748",
+                    background: pagination.page >= pagination.pages ? "#1e2535" : "#2d3748",
+                    color: pagination.page >= pagination.pages ? "#374151" : "#e2e8f0", cursor: pagination.page >= pagination.pages ? "not-allowed" : "pointer"
+                  }}>Next →</button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── FRAUD TAB ──────────────────────────────────────────── */}
+        {activeTab === "fraud" && (
+          <div>
+            <h1 style={{ margin: "0 0 8px", fontSize: "1.6rem", fontWeight: 700, color: "#fff", display: "flex", alignItems: "center", gap: "8px" }}>
+              <span style={{color: "#ef4444"}}>🛡️</span> Fraud Review Queue
+            </h1>
+            <p style={{ margin: "0 0 24px", color: "#64748b" }}>Transactions that breached automated thresholds and require manual intervention.</p>
+            <div style={{ background: "#161b27", border: "1px solid #2d3748", borderRadius: "12px", overflow: "hidden" }}>
+              {loadingFraud ? (
+                <div style={{ padding: "60px", textAlign: "center", color: "#64748b" }}>Loading flagged transactions...</div>
+              ) : fraudTxs.length === 0 ? (
+                <div style={{ padding: "60px", textAlign: "center", color: "#64748b" }}>
+                  <div style={{ fontSize: "2.5rem", marginBottom: "8px" }}>✅</div>
+                  No flagged transactions awaiting review!
+                </div>
+              ) : (
+                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid #2d3748" }}>
+                      {["TxID", "Sender", "Recipient", "Amount", "Flagged On", "SLA Status", "Actions"].map(h => (
+                        <th key={h} style={{ padding: "14px 16px", textAlign: "left", fontSize: "0.75rem", color: "#64748b", fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {fraudTxs.map((tx, i) => {
+                      const ageHours = (new Date() - new Date(tx.created_at)) / (1000 * 60 * 60);
+                      const isBreach = ageHours > 12;
+                      return (
+                      <tr key={tx.id} style={{ borderBottom: i < fraudTxs.length - 1 ? "1px solid #1e2535" : "none" }}>
+                        <td style={{ padding: "14px 16px", color: "#64748b", fontSize: "0.85rem" }}>#{tx.id}</td>
+                        <td style={{ padding: "14px 16px", fontWeight: 600, color: "#e2e8f0" }}>
+                          {tx.from_user_id ? usernameCache[tx.from_user_id] || `User #${tx.from_user_id}` : `SYS`}
+                        </td>
+                        <td style={{ padding: "14px 16px", color: "#64748b" }}>Acct: {tx.to_account_id}</td>
+                        <td style={{ padding: "14px 16px", color: "#ef4444", fontWeight: 600 }}>{formatINR(tx.amount)}</td>
+                        <td style={{ padding: "14px 16px", color: "#64748b", fontSize: "0.85rem" }}>{new Date(tx.created_at).toLocaleString("en-IN")}</td>
+                        <td style={{ padding: "14px 16px" }}>
+                          <span style={{
+                            padding: "3px 10px", borderRadius: "12px", fontSize: "0.78rem", fontWeight: 600,
+                            background: isBreach ? "#ef444422" : "#f59e0b22", color: isBreach ? "#ef4444" : "#f59e0b"
+                          }}>
+                            {isBreach ? "SLA BREACHED" : "Pending Action"}
+                          </span>
+                        </td>
+                        <td style={{ padding: "14px 16px" }}>
+                          <div style={{ display: "flex", gap: "8px" }}>
+                            <button
+                              disabled={actionLoading === `fraud-${tx.id}`}
+                              onClick={() => handleFraudStatus(tx.id, "APPROVED")}
+                              style={{
+                                padding: "5px 14px", borderRadius: "6px", border: "1px solid #10b981",
+                                background: "#10b98122", color: "#10b981", cursor: "pointer",
+                                fontSize: "0.82rem", fontWeight: 600, opacity: actionLoading === `fraud-${tx.id}` ? 0.5 : 1
+                              }}>
+                              Approve
+                            </button>
+                            <button
+                              disabled={actionLoading === `fraud-${tx.id}`}
+                              onClick={() => handleFraudStatus(tx.id, "REJECTED")}
+                              style={{
+                                padding: "5px 14px", borderRadius: "6px", border: "1px solid #ef4444",
+                                background: "#ef444422", color: "#ef4444", cursor: "pointer",
+                                fontSize: "0.82rem", fontWeight: 600, opacity: actionLoading === `fraud-${tx.id}` ? 0.5 : 1
+                              }}>
+                              Reject
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {/* Pagination for Fraud */}
+            {!loadingFraud && pagination.pages > 1 && (
+              <div style={{ display: "flex", justifyContent: "center", gap: "12px", marginTop: "20px", alignItems: "center" }}>
+                <button
+                  disabled={pagination.page <= 1}
+                  onClick={() => fetchFraudTxs(pagination.page - 1)}
+                  style={{
+                    padding: "7px 18px", borderRadius: "6px", border: "1px solid #2d3748",
+                    background: pagination.page <= 1 ? "#1e2535" : "#2d3748",
+                    color: pagination.page <= 1 ? "#374151" : "#e2e8f0", cursor: pagination.page <= 1 ? "not-allowed" : "pointer"
+                  }}>← Prev</button>
+                <span style={{ color: "#64748b", fontSize: "0.85rem" }}>Page {pagination.page} of {pagination.pages}</span>
+                <button
+                  disabled={pagination.page >= pagination.pages}
+                  onClick={() => fetchFraudTxs(pagination.page + 1)}
                   style={{
                     padding: "7px 18px", borderRadius: "6px", border: "1px solid #2d3748",
                     background: pagination.page >= pagination.pages ? "#1e2535" : "#2d3748",
