@@ -50,7 +50,7 @@ export default function Notifications() {
         )}
       </div>
 
-      <div className="glass-card" style={{ padding: 0 }}>
+      <div className="surface-card" style={{ padding: 0 }}>
         {notifications.length === 0
           ? <p className="text-muted empty-state" style={{ padding: "40px" }}>You're all caught up! 🎉</p>
           : notifications.map(n => (

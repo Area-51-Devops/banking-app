@@ -72,7 +72,7 @@ export default function Loans() {
 
       <div className="grid two-col">
         {/* Application Form */}
-        <div className="glass-card">
+        <div className="surface-card">
           <h3>Apply for a Loan</h3>
           <form onSubmit={applyLoan}>
             <div className="input-group">
@@ -99,7 +99,7 @@ export default function Loans() {
               {calcLoading ? "Calculating..." : "Calculate EMI"}
             </button>
             {emi && (
-              <div className="emi-preview glass-card" style={{ padding: "16px", marginBottom: "16px", animation: "fadeIn 0.3s ease" }}>
+              <div className="emi-preview surface-card" style={{ padding: "16px", marginBottom: "16px", animation: "fadeIn 0.3s ease" }}>
                 <div className="emi-row"><span>Monthly EMI</span><strong>{formatINR(emi.emi)}</strong></div>
                 <div className="emi-row"><span>Total Payable</span><strong>{formatINR(emi.totalPayable)}</strong></div>
                 <div className="emi-row"><span>Total Interest</span><strong className="text-danger">{formatINR(emi.totalInterest)}</strong></div>
@@ -112,7 +112,7 @@ export default function Loans() {
         </div>
 
         {/* Loan History */}
-        <div className="glass-card">
+        <div className="surface-card">
           <h3>My Loans</h3>
           {loans.length === 0
             ? (

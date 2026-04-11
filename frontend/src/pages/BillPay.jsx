@@ -72,7 +72,7 @@ export default function BillPay() {
       <div className="biller-grid" style={{ marginBottom: "32px" }}>
         {billers.map(b => (
           <div key={b.code}
-            className={`biller-card glass-card ${form.billerCode === b.code ? "biller-selected" : ""}`}
+            className={`biller-card surface-card ${form.billerCode === b.code ? "biller-selected" : ""}`}
             onClick={() => setForm({ ...form, billerCode: b.code })}>
             <div className="biller-icon">{BILLER_ICONS[b.code] || "🏢"}</div>
             <div className="biller-name">{b.name}</div>
@@ -82,7 +82,7 @@ export default function BillPay() {
       </div>
 
       <div className="grid two-col">
-        <div className="glass-card">
+        <div className="surface-card">
           <h3>Pay Bill</h3>
           <form onSubmit={submit}>
             <div className="input-group">
@@ -116,7 +116,7 @@ export default function BillPay() {
           </form>
         </div>
 
-        <div className="glass-card">
+        <div className="surface-card">
           <h3>Payment History</h3>
           {history.length === 0
             ? (

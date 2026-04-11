@@ -20,7 +20,7 @@ export default function Modal({ isOpen, onClose, title, children }) {
 
   const modalContent = (
     <div className="modal-overlay" ref={overlayRef} onClick={handleOverlayClick}>
-      <div className="modal-content glass-card">
+      <div className="modal-content surface-card">
         <button className="modal-close-btn" onClick={onClose} aria-label="Close modal">×</button>
         {title && <h3 style={{ marginTop: 0, marginBottom: "20px" }}>{title}</h3>}
         {children}

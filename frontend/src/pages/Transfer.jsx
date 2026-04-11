@@ -72,7 +72,7 @@ export default function Transfer() {
       </div>
 
       <div className="grid two-col">
-        <div className="glass-card">
+        <div className="surface-card">
           <h3>New Transfer</h3>
           <form onSubmit={submit}>
             <div className="input-group">
@@ -105,7 +105,7 @@ export default function Transfer() {
           </form>
         </div>
 
-        <div className="glass-card">
+        <div className="surface-card">
           <h3>Transaction History</h3>
           {history.length === 0
             ? (

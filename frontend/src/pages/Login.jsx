@@ -15,15 +15,16 @@ export default function Login() {
     setLoading(true);
     try {
       await login(form.username, form.password);
-      navigate("/dashboard");
+      // navigate("/dashboard") handled by Public Route
     } catch (err) {
       addToast(err.response?.data?.error?.message || "Login failed. Please check credentials.", "error");
-    } finally { setLoading(false); }
+    setLoading(false);
+    }
   };
 
   return (
     <div className="auth-container">
-      <div className="glass-card auth-card">
+      <div className="surface-card auth-card">
         <div className="auth-logo">🏦</div>
         <h2>Welcome Back</h2>
         <p className="auth-subtitle">Sign in to your banking account</p>

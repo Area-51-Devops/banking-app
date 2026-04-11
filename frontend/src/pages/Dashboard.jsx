@@ -65,7 +65,7 @@ export default function Dashboard() {
     return (
       <div className="app-container">
         <div className="skeleton skeleton-title"></div>
-        <div className="summary-strip glass-card" style={{ display: "flex", gap: "20px" }}>
+        <div className="summary-strip surface-card" style={{ display: "flex", gap: "20px" }}>
            <div className="skeleton skeleton-text" style={{ flex: 1, height: "60px" }}></div>
            <div className="skeleton skeleton-text" style={{ flex: 1, height: "60px" }}></div>
            <div className="skeleton skeleton-text" style={{ flex: 1, height: "60px" }}></div>
@@ -96,10 +96,10 @@ export default function Dashboard() {
       </div>
 
       {sumResExists() && (
-        <div className="summary-strip glass-card">
+        <div className="summary-strip surface-card">
           <div className="summary-item">
             <span className="summary-label">Total Balance</span>
-            <span className="summary-value balance-gradient">{formatINR(summary.totalBalance)}</span>
+            <span className="summary-value text-primary">{formatINR(summary.totalBalance)}</span>
           </div>
           <div className="summary-item">
             <span className="summary-label">Total Sent</span>
@@ -120,7 +120,7 @@ export default function Dashboard() {
       <h2 className="section-title">My Accounts</h2>
       <div className="grid">
         {accounts.map(acc => (
-          <div key={acc.id} className="glass-card account-card">
+          <div key={acc.id} className="surface-card account-card">
             <div className="account-type-badge">{acc.account_type}</div>
             <div className="account-number">{acc.account_number}</div>
             <div className="balance-amount">{formatINR(acc.balance)}</div>
@@ -139,7 +139,7 @@ export default function Dashboard() {
       </div>
 
       <h2 className="section-title">Recent Transactions</h2>
-      <div className="glass-card">
+      <div className="surface-card">
         {txHistory.length === 0
           ? (
             <div className="empty-state">

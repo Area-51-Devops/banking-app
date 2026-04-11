@@ -30,7 +30,7 @@ export default function Register() {
 
   return (
     <div className="auth-container">
-      <div className="glass-card auth-card">
+      <div className="surface-card auth-card">
         <div className="auth-logo">🏦</div>
         <h2>Create Account</h2>
         <p className="auth-subtitle">Join BankSecure today</p>
