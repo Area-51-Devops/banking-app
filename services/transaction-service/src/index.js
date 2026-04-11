@@ -81,7 +81,7 @@ async function startOutboxPoller() {
            ORDER BY id ASC LIMIT 10
            FOR UPDATE SKIP LOCKED`
       );
-      if (events.length === 0) { await conn.rollback(); return; }
+      if (events.length === 0) { await conn.rollback(); conn.release(); return; }
 
       // Mark as PROCESSING atomically
       const ids = events.map(e => e.id);
@@ -137,7 +137,7 @@ async function startSagaRecoveryPoller() {
            WHERE saga_state = 'DEBITED' AND timeout_at < NOW()
            LIMIT 10 FOR UPDATE SKIP LOCKED`
       );
-      if (stuckTxs.length === 0) { await conn.rollback(); return; }
+      if (stuckTxs.length === 0) { await conn.rollback(); conn.release(); return; }
 
       // Mark as FAILED before releasing the lock
       const ids = stuckTxs.map(t => t.id);
@@ -412,7 +412,7 @@ app.post('/transfer', async (req, res, next) => {
       await conn3.execute(
         "UPDATE transactions SET saga_state='SUCCESS', status='SUCCESS', updated_at=NOW() WHERE id=?", [txId]
       );
-      const payload = JSON.stringify({ transactionId: txId, fromAccountId, toAccountId, amount, requestId });
+      const payload = JSON.stringify({ transactionId: txId, fromAccountId, toAccountId, amount, requestId, userId: req.body.userId || fromAccountId });
       await conn3.execute(
         "INSERT INTO outbox_events (event_type, aggregate_id, payload, status) VALUES ('TransactionCompleted', ?, ?, 'UNPUBLISHED')",
         [String(txId), payload]
@@ -453,7 +453,14 @@ app.get('/transactions', async (req, res, next) => {
     let rows;
     if (accountId) {
       [rows] = await pool.execute(
-        'SELECT * FROM transactions WHERE from_account_id=? OR to_account_id=? ORDER BY created_at DESC LIMIT 50',
+        `SELECT t.*, 
+                a1.account_number AS from_account_number, 
+                a2.account_number AS to_account_number 
+         FROM transactions t
+         LEFT JOIN accounts a1 ON t.from_account_id = a1.id
+         LEFT JOIN accounts a2 ON t.to_account_id = a2.id
+         WHERE t.from_account_id=? OR t.to_account_id=? 
+         ORDER BY t.created_at DESC LIMIT 50`,
         [accountId, accountId]
       );
     } else {

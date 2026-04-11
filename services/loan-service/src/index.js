@@ -266,6 +266,11 @@ app.patch('/loans/:id/status', authMiddleware, adminMiddleware, async (req, res,
         "INSERT INTO outbox_events (event_type, aggregate_id, payload, status) VALUES ('LoanApproved',?,?,'UNPUBLISHED')",
         [String(loan.id), JSON.stringify({ loanId: loan.id, userId: loan.user_id, amount: loan.amount, emi: loan.emi_amount, accountId: userAccountId })]
       );
+    } else if (status === 'REJECTED') {
+      await conn.execute(
+        "INSERT INTO outbox_events (event_type, aggregate_id, payload, status) VALUES ('LoanRejected',?,?,'UNPUBLISHED')",
+        [String(loan.id), JSON.stringify({ loanId: loan.id, userId: loan.user_id, amount: loan.amount })]
+      );
     }
     await conn.commit();
     log.info({ status }, 'Loan status updated securely');

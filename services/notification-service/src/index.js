@@ -62,6 +62,7 @@ function buildNotification(eventType, payload) {
     FraudRejected:        { userId: payload.userId || payload.fromAccountId, msg: `Your transfer of ${amt} was blocked by fraud detection and reversed. Transaction #${payload.transactionId}` },
     FraudApproved:        { userId: payload.userId || payload.fromAccountId, msg: `Your transfer of ${amt} passed fraud review and is complete. Transaction #${payload.transactionId}` },
     LoanApproved:         { userId: payload.userId, msg: `🎉 Your loan of ${amt} has been approved and credited to your savings account!` },
+    LoanRejected:         { userId: payload.userId, msg: `❌ Your loan application for ${amt} was rejected.` },
     PaymentCompleted:     { userId: payload.userId, msg: `Bill payment of ${amt} to ${payload.billerName || payload.billerCode} completed.` }
   };
   return templates[eventType] || null;
@@ -74,7 +75,7 @@ async function startConsumer(channel) {
   await channel.assertExchange(EXCHANGE, 'topic', { durable: true });
   const q = await channel.assertQueue('notifications', { durable: true });
 
-  const events = ['TransactionCompleted','TransactionFlagged','FraudRejected','FraudApproved','LoanApproved','PaymentCompleted'];
+  const events = ['TransactionCompleted','TransactionFlagged','FraudRejected','FraudApproved','LoanApproved','LoanRejected','PaymentCompleted'];
   for (const ev of events) {
     await channel.bindQueue(q.queue, EXCHANGE, ev);
   }

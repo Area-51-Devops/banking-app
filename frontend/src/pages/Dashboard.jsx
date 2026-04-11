@@ -179,8 +179,8 @@ export default function Dashboard() {
                   {txHistory.map(tx => (
                     <tr key={tx.id}>
                       <td>{tx.id}</td>
-                      <td>{tx.from_account_id ?? <span className="status-badge status-success" style={{fontSize:'11px'}}>LOAN CREDIT</span>}</td>
-                      <td>{tx.to_account_id}</td>
+                      <td>{tx.from_account_id == null ? <span className="status-badge status-success" style={{fontSize:'11px'}}>LOAN CREDIT</span> : tx.from_account_number}</td>
+                      <td>{tx.to_account_number}</td>
                       <td className={tx.from_account_id != null && tx.from_account_id === accounts[0]?.id ? "text-danger" : "text-success"}>
                         {formatINR(tx.amount)}
                       </td>

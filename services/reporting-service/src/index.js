@@ -98,11 +98,16 @@ app.get('/reports/summary/:userId', async (req, res, next) => {
 
     // Recent transactions (last 5, deduplicated — the OR-join would produce duplicates)
     const [recent] = await pool.execute(
-      `SELECT DISTINCT t.* FROM transactions t
-         WHERE (t.from_account_id IN (SELECT id FROM accounts WHERE user_id=?)
-            OR t.to_account_id   IN (SELECT id FROM accounts WHERE user_id=?))
-           AND t.status='SUCCESS'
-         ORDER BY t.created_at DESC LIMIT 5`, [userId, userId]
+      `SELECT DISTINCT t.*,
+              COALESCE(a1.account_number, 'LOAN CREDIT') AS from_account_number,
+              a2.account_number AS to_account_number
+       FROM transactions t
+       LEFT JOIN accounts a1 ON t.from_account_id = a1.id
+       LEFT JOIN accounts a2 ON t.to_account_id = a2.id
+       WHERE (t.from_account_id IN (SELECT id FROM accounts WHERE user_id=?)
+          OR t.to_account_id   IN (SELECT id FROM accounts WHERE user_id=?))
+         AND t.status='SUCCESS'
+       ORDER BY t.created_at DESC LIMIT 5`, [userId, userId]
     );
 
     res.json({
