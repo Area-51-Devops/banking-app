@@ -1,4 +1,4 @@
-import { useAuth } from "../contexts/AuthContext";
+﻿import { useAuth } from "../contexts/AuthContext";
 import { useNavigate, NavLink } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { API } from "../api";
@@ -28,7 +28,7 @@ export default function Navbar() {
     <nav className="navbar">
       <div className="nav-brand" onClick={() => navigate("/dashboard")}>
         <span className="nav-logo">🏦</span>
-        <span className="nav-title">BankSecure</span>
+        <span className="nav-title">NexusBank</span>
       </div>
       {isLoggedIn && (
         <>

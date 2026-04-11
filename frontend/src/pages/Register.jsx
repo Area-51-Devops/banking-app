@@ -1,4 +1,4 @@
-import { useState } from "react";
+﻿import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useToast } from "../contexts/ToastContext";
 import { API } from "../api";
@@ -20,7 +20,11 @@ export default function Register() {
 
     setLoading(true);
     try {
-      await API.user.post("/users/register", { username: form.username, password: form.password });
+      await API.user.post("/users/register", { 
+        username: form.username, 
+        email: form.email, 
+        password: form.password 
+      });
       addToast("Account created successfully. Please login.", "success");
       navigate("/login");
     } catch (err) {
@@ -33,11 +37,15 @@ export default function Register() {
       <div className="surface-card auth-card">
         <div className="auth-logo">🏦</div>
         <h2>Create Account</h2>
-        <p className="auth-subtitle">Join BankSecure today</p>
+        <p className="auth-subtitle">Join NexusBank today</p>
         <form onSubmit={submit}>
           <div className="input-group">
             <label>Username</label>
             <input required autoFocus onChange={e => setForm({ ...form, username: e.target.value })} />
+          </div>
+          <div className="input-group">
+            <label>Email Address</label>
+            <input type="email" required onChange={e => setForm({ ...form, email: e.target.value })} />
           </div>
           <div className="input-group">
             <label>Password</label>

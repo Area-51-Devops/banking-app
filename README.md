@@ -1,4 +1,4 @@
-# 🏦 BankSecure - Microservices Banking System
+﻿# 🏦 NexusBank - Microservices Banking System
 
 This is a complete, production-grade banking system featuring **10 backend Node.js microservices** and a **React frontend**, all containerized using Docker and Docker Compose. It demonstrates advanced distributed architecture patterns including **Saga Orchestration**, the **Outbox Pattern**, scoped Idempotency, and highly resilient connection strategies.
 
