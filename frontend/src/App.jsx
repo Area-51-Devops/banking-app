@@ -54,7 +54,7 @@ function AppRoutes() {
           <Route path="/bill-pay"      element={<PrivateRoute><BillPay /></PrivateRoute>} />
           <Route path="/notifications" element={<PrivateRoute><Notifications /></PrivateRoute>} />
           <Route path="/admin"         element={<AdminRoute><AdminDashboard /></AdminRoute>} />
-          <Route path="*"        element={<Navigate to="/dashboard" replace />} />
+          <Route path="*"        element={<Navigate to="/login" replace />} />
         </Routes>
       </main>
     </>

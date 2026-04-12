@@ -42,7 +42,7 @@ export default function BillPay() {
     try {
       const idemKey = uuidv4();
       const { data } = await API.payment.post("/pay-bill",
-        { accountId: Number(form.accountId), userId: user.id, billerCode: form.billerCode, amount: Number(form.amount) },
+        { accountId: Number(form.accountId), billerCode: form.billerCode, amount: Number(form.amount) },
         { headers: { "idempotency-key": idemKey } }
       );
       addToast(`✅ Payment to ${data.billerName} of ${formatINR(form.amount)} completed!`, "success");
@@ -98,7 +98,7 @@ export default function BillPay() {
             </div>
             <div className="input-group">
               <label>Biller</label>
-              <div style={{ padding: "12px", border: "1px solid #ccc", borderRadius: "4px", backgroundColor: "#333", color: "#ddd" }}>
+              <div style={{ padding: "12px", border: "1px solid var(--border-subtle)", borderRadius: "6px", background: "var(--bg-surface)", color: "var(--text-main)" }}>
                 {form.billerCode ? billers.find(b => b.code === form.billerCode)?.name || "Selected" : "— Select a biller from above —"}
               </div>
             </div>

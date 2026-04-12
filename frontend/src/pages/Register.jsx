@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { useToast } from "../contexts/ToastContext";
 import { API } from "../api";
@@ -6,7 +6,7 @@ import { API } from "../api";
 export default function Register() {
   const navigate = useNavigate();
   const { addToast } = useToast();
-  const [form, setForm]       = useState({ username: "", password: "", confirm: "" });
+  const [form, setForm]       = useState({ username: "", email: "", password: "", confirm: "" });
   const [loading, setLoading] = useState(false);
 
   const submit = async (e) => {

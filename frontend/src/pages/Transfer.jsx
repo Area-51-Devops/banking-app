@@ -4,6 +4,40 @@ import { useToast } from "../contexts/ToastContext";
 import { API, formatINR } from "../api";
 import { v4 as uuidv4 } from "uuid";
 
+/** Click-to-copy button for full UUID reference IDs */
+function CopyRefId({ id }) {
+  const [copied, setCopied] = useState(false);
+  const copy = (e) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(id).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+      <span title={id} style={{ fontFamily: "monospace", fontSize: "12px", color: "var(--text-muted)" }}>
+        {id.substring(0, 8)}…
+      </span>
+      <button
+        onClick={copy}
+        title={`Copy full ID: ${id}`}
+        style={{
+          width: "auto", padding: "2px 6px",
+          background: "transparent",
+          border: `1px solid ${copied ? "var(--success)" : "var(--border-subtle)"}`,
+          borderRadius: "4px",
+          color: copied ? "var(--success)" : "var(--text-muted)",
+          cursor: "pointer", fontSize: "0.7rem",
+          transition: "all 0.2s", lineHeight: 1,
+        }}
+      >
+        {copied ? "✓" : "⎘"}
+      </button>
+    </div>
+  );
+}
+
 export default function Transfer() {
   const { user } = useAuth();
   const { addToast } = useToast();
@@ -93,7 +127,6 @@ export default function Transfer() {
           fromAccountId: Number(fromAccountId),
           toAccountId:   Number(resolvedRecipient.id),
           amount:        Number(amount),
-          userId:        user.id,
         },
         { headers: { "idempotency-key": idemKey } }
       );
@@ -270,7 +303,7 @@ export default function Transfer() {
                     const isLoan = tx.from_account_id == null;
                     return (
                       <tr key={tx.id}>
-                        <td style={{ color: "var(--text-muted)", fontSize: "12px" }}>#{tx.id}</td>
+                        <td><CopyRefId id={tx.id} /></td>
                         <td style={{ fontWeight: 600 }}
                           className={isSent ? "text-danger" : "text-success"}>
                           {isSent ? "−" : "+"}{formatINR(tx.amount)}

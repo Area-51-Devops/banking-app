@@ -23,6 +23,21 @@ function makeClient(baseURL) {
     if (token) cfg.headers["Authorization"] = `Bearer ${token}`;
     return cfg;
   });
+  // Auto-logout on 401 (expired or invalid token)
+  instance.interceptors.response.use(
+    (res) => res,
+    (err) => {
+      if (err.response?.status === 401) {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+        // Force a clean page reload to /login, clearing all React state
+        if (window.location.pathname !== "/login") {
+          window.location.href = "/login";
+        }
+      }
+      return Promise.reject(err);
+    }
+  );
   return instance;
 }
 

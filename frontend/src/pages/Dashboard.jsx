@@ -1,8 +1,46 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useToast } from "../contexts/ToastContext";
 import { API, formatINR } from "../api";
 import Modal from "../components/Modal";
+
+/** Click-to-copy button for full UUID reference IDs */
+function CopyRefId({ id }) {
+  const [copied, setCopied] = useState(false);
+  const copy = (e) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(id).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+      <span
+        title={id}
+        style={{ fontFamily: "monospace", fontSize: "0.82rem", color: "#64748b" }}
+      >
+        {id.substring(0, 8)}…
+      </span>
+      <button
+        onClick={copy}
+        title={`Copy full ID: ${id}`}
+        style={{
+          width: "auto", padding: "2px 7px",
+          background: "transparent",
+          border: `1px solid ${copied ? "#10b981" : "#2d3748"}`,
+          borderRadius: "4px",
+          color: copied ? "#10b981" : "#64748b",
+          cursor: "pointer", fontSize: "0.72rem",
+          transition: "all 0.2s",
+          lineHeight: 1,
+        }}
+      >
+        {copied ? "✓" : "⎘"}
+      </button>
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const { user } = useAuth();
@@ -130,7 +168,6 @@ export default function Dashboard() {
           }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
               <span style={{ background: "#3b82f622", color: "#60a5fa", padding: "4px 10px", borderRadius: "20px", fontSize: "0.75rem", fontWeight: 700, letterSpacing: "0.05em" }}>{acc.account_type}</span>
-              <span style={{ background: "#2d3748", padding: "4px 8px", borderRadius: "6px", fontSize: "0.8rem", color: "#94a3b8", fontFamily: "monospace" }}>ID: {acc.id}</span>
             </div>
             <div style={{ fontSize: "1.1rem", color: "#94a3b8", marginBottom: "4px", letterSpacing: "0.1em" }}>{acc.account_number}</div>
             <div style={{ fontSize: "2rem", fontWeight: 700, color: "#fff", marginBottom: "24px" }}>{formatINR(acc.balance)}</div>
@@ -188,7 +225,7 @@ export default function Dashboard() {
                 const isDebit = tx.from_account_id != null && tx.from_account_id === accounts[0]?.id;
                 return (
                   <tr key={tx.id} style={{ borderBottom: i < txHistory.length - 1 ? "1px solid #1e2535" : "none" }}>
-                    <td style={{ padding: "16px 20px", color: "#64748b", fontFamily: "monospace", fontSize: "0.85rem" }}>{tx.id.substring(0,8)}...</td>
+                    <td style={{ padding: "16px 20px" }}><CopyRefId id={tx.id} /></td>
                     <td style={{ padding: "16px 20px", color: "#e2e8f0" }}>{tx.from_account_id == null ? <span style={{ color: "#10b981", fontSize: "0.75rem", fontWeight: 700, padding: "2px 8px", background: "#10b98122", borderRadius: "12px" }}>SYSTEM</span> : tx.from_account_number}</td>
                     <td style={{ padding: "16px 20px", color: "#e2e8f0" }}>{tx.to_account_number}</td>
                     <td style={{ padding: "16px 20px", color: isDebit ? "#ef4444" : "#10b981", fontWeight: 600, fontSize: "1.05rem" }}>

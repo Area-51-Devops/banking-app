@@ -169,7 +169,7 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleLogout = () => { logout(); };
+  const handleLogout = () => { logout(); window.location.href = "/login"; };
 
   // ── STATUS badge colour helper ──────────────────────────────────────────
   const statusColor = { PENDING: "#f59e0b", APPROVED: "#10b981", REJECTED: "#ef4444" };

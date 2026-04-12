@@ -9,11 +9,10 @@ export default function Navbar() {
   const [unread, setUnread] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Admin users have their own portal layout — no banking navbar needed
-  if (isLoggedIn && user?.role === 'ADMIN') return null;
-
+  // All hooks must be declared before any conditional return (Rules of Hooks)
   useEffect(() => {
-    if (!user) return;
+    // Admin users have their own portal — skip notification polling
+    if (!user || user.role === 'ADMIN') return;
     const poll = () => {
       API.notify.get(`/notifications/${user.id}`)
         .then(r => setUnread((r.data.notifications || []).filter(n => !n.is_read).length))
@@ -23,6 +22,10 @@ export default function Navbar() {
     const id = setInterval(poll, 30000);
     return () => clearInterval(id);
   }, [user]);
+
+  // Admin users have their own portal layout — no banking navbar needed
+  // This return MUST come after all hooks (Rules of Hooks)
+  if (isLoggedIn && user?.role === 'ADMIN') return null;
 
   const handleLogout = () => { logout(); setMenuOpen(false); };
   const closeMenu = () => setMenuOpen(false);

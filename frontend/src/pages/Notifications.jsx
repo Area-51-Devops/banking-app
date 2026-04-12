@@ -74,12 +74,14 @@ export default function Notifications() {
 
 function getIcon(eventType) {
   const icons = {
-    TransactionCompleted: "✅",
-    TransactionFlagged:   "⚠️",
-    FraudRejected:       "🚫",
-    FraudApproved:       "✅",
-    LoanApproved:        "🎉",
-    PaymentCompleted:    "💳"
+    TransactionCompleted:    "✅",
+    TransactionFlagged:      "⚠️",
+    FraudRejected:           "🚫",
+    FraudApproved:           "✅",
+    LoanApplicationReceived: "📝",
+    LoanApproved:            "🎉",
+    LoanRejected:            "❌",
+    PaymentCompleted:        "💳",
   };
   return icons[eventType] || "🔔";
 }

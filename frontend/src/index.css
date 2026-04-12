@@ -1,4 +1,4 @@
-﻿/* ─────────────────────────────────────────────────────
+/* ─────────────────────────────────────────────────────
    NexusBank Design System — Enterprise Dark SaaS
    ───────────────────────────────────────────────────── */
 
@@ -129,6 +129,13 @@ h4 { font-size: var(--text-base);font-weight: var(--font-medium); color: var(--t
 .app-container {
   max-width: 1100px; margin: 0 auto;
   padding: var(--space-10) var(--space-8);
+}
+
+/* Wraps entire page below navbar; admin uses full viewport */
+.main-content {
+  flex: 1;
+  display: block;
+  min-height: calc(100vh - 64px);
 }
 
 .page-header { margin-bottom: var(--space-8); }

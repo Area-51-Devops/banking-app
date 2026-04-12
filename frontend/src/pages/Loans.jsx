@@ -49,7 +49,6 @@ export default function Loans() {
     setLoading(true);
     try {
       const { data } = await API.loan.post("/loans", {
-        userId: user.id,
         amount: Number(form.amount),
         tenureMonths: Number(form.tenureMonths),
         interestRate: Number(form.interestRate)
