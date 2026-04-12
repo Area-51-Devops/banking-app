@@ -45,7 +45,7 @@ jobs:
 
       - name: Trivy Scan
         run: |
-          docker run --rm aquasec/trivy image \
+          docker run --rm aquasec/trivy:0.69.3 image \
           --severity HIGH,CRITICAL \
           --exit-code 1 \
           ${{ secrets.DOCKER_USERNAME }}/frontend:latest
