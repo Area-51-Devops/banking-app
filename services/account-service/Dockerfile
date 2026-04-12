@@ -1,4 +1,5 @@
-﻿FROM node:18-alpine
+FROM node:18-alpine
+RUN apk upgrade --no-cache
 WORKDIR /usr/src/app
 # Context is ./services, so copy paths must be relative to the services/ directory
 COPY account-service/package*.json ./
