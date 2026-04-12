@@ -240,38 +240,61 @@ export default function Dashboard() {
         </div>
       )}
 
-      <h2 style={{ fontSize: "1.3rem", fontWeight: 600, color: "#e2e8f0", marginBottom: "16px" }}>Recent Transactions</h2>
+      <h2 style={{ fontSize: "1.3rem", fontWeight: 600, color: "#e2e8f0", marginBottom: "16px" }}>Recent Activity</h2>
       <div style={{ background: "#161b27", borderRadius: "16px", border: "1px solid #2d3748", overflow: "hidden" }}>
         {txHistory.length === 0 ? (
-          <div style={{ padding: "60px", textAlign: "center", color: "#64748b" }}>No recent transactions to display.</div>
+          <div style={{ padding: "60px", textAlign: "center", color: "#64748b" }}>No recent activity to display.</div>
         ) : (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead style={{ background: "#1e2535" }}>
               <tr>
-                {["Ref ID", "From", "To", "Amount", "Status", "Date"].map(h => (
+                {["Ref ID", "Type", "Description", "Amount", "Status", "Date"].map(h => (
                   <th key={h} style={{ padding: "16px 20px", textAlign: "left", fontSize: "0.75rem", color: "#94a3b8", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.05em", borderBottom: "1px solid #2d3748" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {txHistory.map((tx, i) => {
-                const isDebit = tx.from_account_id != null && tx.from_account_id === accounts[0]?.id;
+                const isBillPay = tx.activity_type === "BILL_PAYMENT";
+                const isDebit = isBillPay
+                  ? true
+                  : (tx.from_account_id != null && tx.from_account_id === accounts[0]?.id);
+                const isLoan = !isBillPay && tx.from_account_id == null;
+
+                const typeLabel = isBillPay ? "Bill Pay" : isLoan ? "Loan Credit" : isDebit ? "Transfer Out" : "Transfer In";
+                const typeBg   = isBillPay ? "#f59e0b22" : isLoan ? "#10b98122" : isDebit ? "#ef444422" : "#3b82f622";
+                const typeClr  = isBillPay ? "#f59e0b"   : isLoan ? "#10b981"   : isDebit ? "#ef4444"   : "#60a5fa";
+
+                const description = isBillPay
+                  ? (tx.biller_name || "Bill Payment")
+                  : isLoan
+                  ? "Loan disbursement"
+                  : isDebit
+                  ? `→ ${tx.to_account_number || "—"}`
+                  : `← ${tx.from_account_number || "SYSTEM"}`;
+
                 return (
-                  <tr key={tx.id} style={{ borderBottom: i < txHistory.length - 1 ? "1px solid #1e2535" : "none" }}>
-                    <td style={{ padding: "16px 20px" }}><CopyRefId id={tx.id} /></td>
-                    <td style={{ padding: "16px 20px", color: "#e2e8f0" }}>{tx.from_account_id == null ? <span style={{ color: "#10b981", fontSize: "0.75rem", fontWeight: 700, padding: "2px 8px", background: "#10b98122", borderRadius: "12px" }}>SYSTEM</span> : tx.from_account_number}</td>
-                    <td style={{ padding: "16px 20px", color: "#e2e8f0" }}>{tx.to_account_number}</td>
+                  <tr key={`${tx.activity_type}-${tx.id}-${i}`} style={{ borderBottom: i < txHistory.length - 1 ? "1px solid #1e2535" : "none" }}>
+                    <td style={{ padding: "16px 20px" }}><CopyRefId id={String(tx.id)} /></td>
+                    <td style={{ padding: "16px 20px" }}>
+                      <span style={{ padding: "3px 10px", borderRadius: "20px", fontSize: "0.72rem", fontWeight: 700, background: typeBg, color: typeClr }}>
+                        {typeLabel}
+                      </span>
+                    </td>
+                    <td style={{ padding: "16px 20px", color: "#94a3b8", fontSize: "0.88rem" }}>{description}</td>
                     <td style={{ padding: "16px 20px", color: isDebit ? "#ef4444" : "#10b981", fontWeight: 600, fontSize: "1.05rem" }}>
-                      {isDebit ? "-" : "+"}{formatINR(tx.amount)}
+                      {isDebit ? "−" : "+"}{formatINR(tx.amount)}
                     </td>
                     <td style={{ padding: "16px 20px" }}>
-                      <span style={{ 
+                      <span style={{
                         padding: "4px 10px", borderRadius: "20px", fontSize: "0.75rem", fontWeight: 700,
-                        background: tx.status === 'SUCCESS' ? "#10b98122" : tx.status === 'FAILED' ? "#ef444422" : tx.status === 'FLAGGED' ? "#e11d4822" : "#f59e0b22",
-                        color: tx.status === 'SUCCESS' ? "#10b981" : tx.status === 'FAILED' ? "#ef4444" : tx.status === 'FLAGGED' ? "#e11d48" : "#f59e0b"
+                        background: tx.status === "SUCCESS" || tx.status === "COMPLETED" ? "#10b98122" : tx.status === "FAILED" ? "#ef444422" : tx.status === "FLAGGED" ? "#e11d4822" : "#f59e0b22",
+                        color:      tx.status === "SUCCESS" || tx.status === "COMPLETED" ? "#10b981"   : tx.status === "FAILED" ? "#ef4444"   : tx.status === "FLAGGED" ? "#e11d48"   : "#f59e0b"
                       }}>{tx.status}</span>
                     </td>
-                    <td style={{ padding: "16px 20px", color: "#94a3b8", fontSize: "0.85rem" }}>{new Date(tx.created_at).toLocaleString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</td>
+                    <td style={{ padding: "16px 20px", color: "#94a3b8", fontSize: "0.85rem" }}>
+                      {new Date(tx.created_at).toLocaleString("en-IN", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </td>
                   </tr>
                 );
               })}

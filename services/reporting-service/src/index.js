@@ -76,14 +76,20 @@ app.get('/reports/summary/:userId', async (req, res, next) => {
       'SELECT COALESCE(SUM(balance), 0) AS totalBalance FROM accounts WHERE user_id=?', [userId]
     );
 
-    // Total debits (money sent)
-    const [[{ totalDebits }]] = await pool.execute(
-      `SELECT COALESCE(SUM(t.amount), 0) AS totalDebits
+    // Total debits = peer-to-peer transfers (SUCCESS) + completed bill payments
+    const [[{ txDebits }]] = await pool.execute(
+      `SELECT COALESCE(SUM(t.amount), 0) AS txDebits
          FROM transactions t JOIN accounts a ON t.from_account_id = a.id
          WHERE a.user_id=? AND t.status='SUCCESS'`, [userId]
     );
+    const [[{ billDebits }]] = await pool.execute(
+      `SELECT COALESCE(SUM(p.amount), 0) AS billDebits
+         FROM payments p JOIN accounts a ON p.account_id = a.id
+         WHERE a.user_id=? AND p.status='COMPLETED'`, [userId]
+    );
+    const totalDebits = Number(txDebits) + Number(billDebits);
 
-    // Total credits (money received)
+    // Total credits (money received via transfers + loan disbursements)
     const [[{ totalCredits }]] = await pool.execute(
       `SELECT COALESCE(SUM(t.amount), 0) AS totalCredits
          FROM transactions t JOIN accounts a ON t.to_account_id = a.id
@@ -96,17 +102,33 @@ app.get('/reports/summary/:userId', async (req, res, next) => {
          FROM loans WHERE user_id=? AND status='APPROVED'`, [userId]
     );
 
-    // Recent transactions (last 5, deduplicated — the OR-join would produce duplicates)
+    // Recent activity: last 10 items combining transfers + bill payments
     const [recent] = await pool.execute(
-      `SELECT DISTINCT t.*,
-              COALESCE(a1.account_number, 'LOAN CREDIT') AS from_account_number,
-              a2.account_number AS to_account_number
-       FROM transactions t
-       LEFT JOIN accounts a1 ON t.from_account_id = a1.id
-       LEFT JOIN accounts a2 ON t.to_account_id = a2.id
-       WHERE (t.from_account_id IN (SELECT id FROM accounts WHERE user_id=?)
-          OR t.to_account_id   IN (SELECT id FROM accounts WHERE user_id=?))
-       ORDER BY t.created_at DESC LIMIT 5`, [userId, userId]
+      `SELECT id, from_account_id, to_account_id, amount, status, created_at,
+              'TRANSFER' AS activity_type, NULL AS biller_name,
+              from_account_number, to_account_number
+       FROM (
+         SELECT t.id, t.from_account_id, t.to_account_id, t.amount, t.status, t.created_at,
+                COALESCE(a1.account_number, 'LOAN CREDIT') AS from_account_number,
+                a2.account_number AS to_account_number
+         FROM transactions t
+         LEFT JOIN accounts a1 ON t.from_account_id = a1.id
+         LEFT JOIN accounts a2 ON t.to_account_id = a2.id
+         WHERE (t.from_account_id IN (SELECT id FROM accounts WHERE user_id=?)
+            OR  t.to_account_id   IN (SELECT id FROM accounts WHERE user_id=?))
+       ) AS tx_sub
+
+       UNION ALL
+
+       SELECT CAST(p.id AS CHAR), p.account_id, NULL, p.amount, p.status, p.created_at,
+              'BILL_PAYMENT', p.biller_name,
+              a.account_number, NULL
+       FROM payments p
+       JOIN accounts a ON p.account_id = a.id
+       WHERE a.user_id=?
+
+       ORDER BY created_at DESC LIMIT 10`,
+      [userId, userId, userId]
     );
 
     res.json({
