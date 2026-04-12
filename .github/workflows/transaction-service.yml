@@ -1,15 +1,13 @@
-name: Notification-Service-CI
+name: Transaction-Service-CI
 
 on:
   push:
     paths:
-      - 'services/notification-service/**'
+      - 'services/transaction-service/**'
   pull_request:
     paths:
-      - 'services/notification-service/**'
+      - 'services/transaction-service/**'
   workflow_dispatch:
-
-    
 
 jobs:
   build:
@@ -17,7 +15,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: services/notification-service
+        working-directory: services/transaction-service
 
     steps:
       - name: Checkout
@@ -26,8 +24,8 @@ jobs:
       - name: Cache node_modules
         uses: actions/cache@v4
         with:
-          path: services/notification-service/node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles('services/notification-service/package-lock.json') }}
+          path: services/transaction-service/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('services/transaction-service/package-lock.json') }}
 
       - name: Install dependencies
         run: npm install
@@ -36,7 +34,7 @@ jobs:
         uses: snyk/actions/node@master
         with:
           command: test
-          args: --file=services/notification-service/package.json --severity-threshold=high
+          args: --file=services/transaction-service/package.json --severity-threshold=high
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
@@ -45,12 +43,12 @@ jobs:
 
       - name: Build Docker Image
         working-directory: services
-        run: docker build -f notification-service/Dockerfile -t ${{ secrets.DOCKER_USERNAME }}/notification-service:latest .
+        run: docker build -f transaction-service/Dockerfile -t ${{ secrets.DOCKER_USERNAME }}/transaction-service:latest .
 
       - name: Trivy Scan
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: ${{ secrets.DOCKER_USERNAME }}/notification-service:latest
+          image-ref: ${{ secrets.DOCKER_USERNAME }}/transaction-service:latest
           format: table
           exit-code: 1
           severity: HIGH,CRITICAL
@@ -62,4 +60,4 @@ jobs:
           password: ${{ secrets.DOCKER_PASSWORD }}
 
       - name: Push Image
-        run: docker push ${{ secrets.DOCKER_USERNAME }}/notification-service:latest
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/transaction-service:latest
