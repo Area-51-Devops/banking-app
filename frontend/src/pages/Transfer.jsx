@@ -7,21 +7,47 @@ import { v4 as uuidv4 } from "uuid";
 /** Click-to-copy button for full UUID reference IDs */
 function CopyRefId({ id }) {
   const [copied, setCopied] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+
   const copy = (e) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(id).then(() => {
+    
+    // Fallback for non-HTTPS environments (EC2 without SSL)
+    const fallbackCopy = (text) => {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.position = "fixed";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try { document.execCommand('copy'); } catch (err) {}
+      document.body.removeChild(textArea);
+    };
+
+    if (navigator.clipboard && window.isSecureContext) {
+      navigator.clipboard.writeText(id).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      });
+    } else {
+      fallbackCopy(id);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
-    });
+    }
   };
+
   return (
     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-      <span title={id} style={{ fontFamily: "monospace", fontSize: "12px", color: "var(--text-muted)" }}>
-        {id.substring(0, 8)}…
+      <span 
+        title={id} 
+        onClick={(e) => { e.stopPropagation(); setExpanded(!expanded); }}
+        style={{ fontFamily: "monospace", fontSize: "12px", color: "var(--text-muted)", cursor: "pointer" }}
+      >
+        {expanded ? id : `${id.substring(0, 8)}…`}
       </span>
       <button
         onClick={copy}
-        title={`Copy full ID: ${id}`}
+        title="Copy full ID"
         style={{
           width: "auto", padding: "2px 6px",
           background: "transparent",
@@ -32,7 +58,7 @@ function CopyRefId({ id }) {
           transition: "all 0.2s", lineHeight: 1,
         }}
       >
-        {copied ? "✓" : "⎘"}
+        {copied ? "✓ Copied" : "⎘ Copy"}
       </button>
     </div>
   );
