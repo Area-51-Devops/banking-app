@@ -7,6 +7,8 @@ on:
   pull_request:
     paths:
       - 'services/config-service/**'
+  workflow_dispatch:
+    
 
 jobs:
   build:
