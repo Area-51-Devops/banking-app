@@ -250,9 +250,10 @@ app.patch('/loans/:id/status', authMiddleware, adminMiddleware, async (req, res,
         log.info({ loanId: loan.id, userId: loan.user_id, amount: loan.amount, accountId: userAccountId }, 'Loan amount disbursed to user account');
 
         // Record a LOAN_CREDIT transaction so it appears in the user's transaction history
+        // NOTE: transactions.id is VARCHAR(36) UUID — must supply it explicitly (MySQL auto-increment does not apply)
         await conn.execute(
-          `INSERT INTO transactions (from_account_id, to_account_id, amount, status, saga_state, request_id)
-             VALUES (NULL, ?, ?, 'SUCCESS', 'SUCCESS', ?)`,
+          `INSERT INTO transactions (id, from_account_id, to_account_id, amount, status, saga_state, request_id)
+             VALUES (UUID(), NULL, ?, ?, 'SUCCESS', 'SUCCESS', ?)`,
           [userAccountId, loan.amount, `loan-disburse:${loan.id}`]
         );
       } catch (disburseErr) {

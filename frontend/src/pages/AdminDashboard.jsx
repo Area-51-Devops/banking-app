@@ -43,15 +43,22 @@ export default function AdminDashboard() {
       });
 
       // Resolve missing usernames without joining tables
-      const missing = [...new Set((r.data.transactions || []).map(t => t.from_user_id))].filter(id => id && !usernameCache[id]);
+      const missing = [...new Set((r.data.transactions || [])
+        .map(t => t.from_account_id)
+        .filter(id => id != null)
+      )].filter(accId => !usernameCache[`acc_${accId}`]);
       if (missing.length > 0) {
         const newCache = { ...usernameCache };
-        await Promise.all(missing.map(async id => {
+        await Promise.all(missing.map(async accId => {
           try {
-            const res = await API.user.get(`/users/${id}`);
-            newCache[id] = res.data.user.username;
+            const res = await API.account.get(`/accounts/${accId}`);
+            const userId = res.data.account?.user_id;
+            if (userId) {
+              const uRes = await API.user.get(`/users/${userId}`);
+              newCache[`acc_${accId}`] = uRes.data.user.username;
+            }
           } catch {
-            newCache[id] = `User #${id}`;
+            newCache[`acc_${accId}`] = `Acc #${accId}`;
           }
         }));
         setUsernameCache(prev => ({...prev, ...newCache}));
@@ -290,7 +297,7 @@ export default function AdminDashboard() {
         {activeTab === "fraud" && (
           <div>
             <h1 style={{ margin: "0 0 8px", fontSize: "1.6rem", fontWeight: 700, color: "#fff" }}>Fraud Review Dashboard</h1>
-            <p style={{ margin: "0 0 24px", color: "#64748b" }}>Transactions flagged by the automated anti-fraud engine.</p>
+            <p style={{ margin: "0 0 24px", color: "#64748b" }}>Transactions flagged for manual review due to unusual activity patterns.</p>
 
             <div style={{ background: "#161b27", border: "1px solid #2d3748", borderRadius: "12px", overflow: "hidden" }}>
               {loadingFlagged ? (
@@ -313,7 +320,7 @@ export default function AdminDashboard() {
                     {flaggedTxs.map((tx, i) => (
                       <tr key={tx.id} style={{ borderBottom: i < flaggedTxs.length - 1 ? "1px solid #1e2535" : "none" }}>
                         <td style={{ padding: "14px 16px", color: "#e11d48", fontWeight: 600, fontSize: "0.85rem" }}>#{tx.id}</td>
-                        <td style={{ padding: "14px 16px", fontWeight: 600, color: "#e2e8f0" }}>{usernameCache[tx.from_user_id] || "..."}</td>
+                        <td style={{ padding: "14px 16px", fontWeight: 600, color: "#e2e8f0" }}>{usernameCache[`acc_${tx.from_account_id}`] || "—"}</td>
                         <td style={{ padding: "14px 16px", color: "#94a3b8" }}>ID: {tx.from_account_id}</td>
                         <td style={{ padding: "14px 16px", color: "#f87171", fontWeight: 700, fontSize: "1.1rem" }}>{formatINR(tx.amount)}</td>
                         <td style={{ padding: "14px 16px", color: "#64748b", fontSize: "0.85rem" }}>{new Date(tx.created_at).toLocaleString("en-IN")}</td>

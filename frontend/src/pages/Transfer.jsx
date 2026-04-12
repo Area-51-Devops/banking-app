@@ -161,6 +161,7 @@ export default function Transfer() {
       const { data } = await API.tx.post(
         "/transfer",
         {
+          userId: user.id,
           fromAccountId: Number(fromAccountId),
           toAccountId:   Number(resolvedRecipient.id),
           amount:        Number(amount),

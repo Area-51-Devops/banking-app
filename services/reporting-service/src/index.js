@@ -106,7 +106,6 @@ app.get('/reports/summary/:userId', async (req, res, next) => {
        LEFT JOIN accounts a2 ON t.to_account_id = a2.id
        WHERE (t.from_account_id IN (SELECT id FROM accounts WHERE user_id=?)
           OR t.to_account_id   IN (SELECT id FROM accounts WHERE user_id=?))
-         AND t.status='SUCCESS'
        ORDER BY t.created_at DESC LIMIT 5`, [userId, userId]
     );
 

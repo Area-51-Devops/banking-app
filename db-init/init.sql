@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
     id          INT AUTO_INCREMENT PRIMARY KEY,
     username    VARCHAR(255) UNIQUE NOT NULL,
     password    VARCHAR(255) NOT NULL,          -- bcrypt hashed
-    email       VARCHAR(255) NOT NULL,
+    email       VARCHAR(255) UNIQUE NOT NULL,
     role        ENUM('USER', 'ADMIN') DEFAULT 'USER',
     created_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at  DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP

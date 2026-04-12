@@ -59,11 +59,51 @@ async function init() {
     return conn;
   }, 'RabbitMQ');
 
+  startOutboxPoller();
   isStarted = true;
 }
 
 const app = express();
 app.use(cors()); app.use(express.json()); app.use(requestIdMiddleware);
+
+// ── Outbox Poller ───────────────────────────────
+function startOutboxPoller() {
+  setInterval(async () => {
+    if (!mqChannel) return;
+    const conn = await pool.getConnection();
+    try {
+      await conn.beginTransaction();
+      const [events] = await conn.execute(
+        `SELECT * FROM outbox_events
+           WHERE status IN ('UNPUBLISHED','FAILED') AND retry_count < 5
+           ORDER BY id ASC LIMIT 10 FOR UPDATE SKIP LOCKED`
+      );
+      if (events.length === 0) { await conn.rollback(); conn.release(); return; }
+      const ids = events.map(e => e.id);
+      await conn.execute(
+        `UPDATE outbox_events SET status='PROCESSING' WHERE id IN (${ids.map(() => '?').join(',')})`, ids
+      );
+      await conn.commit();
+      conn.release();
+      for (const event of events) {
+        const conn2 = await pool.getConnection();
+        try {
+          const payloadStr = typeof event.payload === 'string' ? event.payload : JSON.stringify(event.payload);
+          mqChannel.publish(EXCHANGE, event.event_type, Buffer.from(payloadStr), { persistent: true });
+          await conn2.execute("UPDATE outbox_events SET status='PUBLISHED', updated_at=NOW() WHERE id=?", [event.id]);
+          logger.info({ eventId: event.id, eventType: event.event_type }, 'Payment outbox event published');
+        } catch (pubErr) {
+          logger.error({ eventId: event.id, err: pubErr.message }, 'Failed to publish payment outbox event');
+          await conn2.execute("UPDATE outbox_events SET status='FAILED', retry_count=retry_count+1, updated_at=NOW() WHERE id=?", [event.id]);
+        } finally { conn2.release(); }
+      }
+    } catch (err) {
+      logger.error({ err: err.message }, 'Payment outbox poller error');
+      try { await conn.rollback(); } catch (_) {}
+      conn.release();
+    }
+  }, 5000);
+}
 
 app.get('/health/startup',   (req, res) => res.json({ status: isStarted ? 'UP' : 'STARTING', service: 'payment-service' }));
 app.get('/health/liveness',  async (req, res, next) => {

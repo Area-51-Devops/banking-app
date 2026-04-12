@@ -56,7 +56,7 @@ async function startConsumer(channel) {
   await channel.assertExchange(EXCHANGE, 'topic', { durable: true });
   const q = await channel.assertQueue('notifications', { durable: true });
 
-  const events = ['TransactionCompleted','TransactionFlagged','FraudRejected','FraudApproved','LoanApproved','LoanRejected','PaymentCompleted'];
+  const events = ['TransactionCompleted','TransactionFlagged','FraudRejected','FraudApproved','LoanApplicationReceived','LoanApproved','LoanRejected','PaymentCompleted'];
   for (const ev of events) {
     await channel.bindQueue(q.queue, EXCHANGE, ev);
   }
@@ -124,6 +124,9 @@ async function startConsumer(channel) {
           }
           break;
         }
+        case 'LoanApplicationReceived':
+          if (raw.userId) notifs.push({ userId: raw.userId, msg: `📝 Your loan application for ${amt} has been received and is under review.` });
+          break;
         case 'LoanApproved':
           notifs.push({ userId: raw.userId, msg: `🎉 Your loan of ${amt} has been approved and credited to your savings account!` });
           break;

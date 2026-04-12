@@ -42,7 +42,7 @@ export default function BillPay() {
     try {
       const idemKey = uuidv4();
       const { data } = await API.payment.post("/pay-bill",
-        { accountId: Number(form.accountId), billerCode: form.billerCode, amount: Number(form.amount) },
+        { userId: user.id, accountId: Number(form.accountId), billerCode: form.billerCode, amount: Number(form.amount) },
         { headers: { "idempotency-key": idemKey } }
       );
       addToast(`✅ Payment to ${data.billerName} of ${formatINR(form.amount)} completed!`, "success");
