@@ -190,11 +190,18 @@ async function startFraudEventConsumer(channel) {
       const conn = await pool.getConnection();
       try {
         if (decision === 'APPROVED') {
+          // Credit the to-account since it was skipped during FLAGGED state
+          await accountClient.post(
+            `/accounts/${event.toAccountId}/credit`,
+            { amount: event.amount },
+            { headers: { 'idempotency-key': `credit:fraud:${transactionId}:${event.toAccountId}` } }
+          );
+          
           await conn.execute(
             "UPDATE transactions SET saga_state='SUCCESS', status='SUCCESS', updated_at=NOW() WHERE id=?",
             [transactionId]
           );
-          logger.info({ transactionId }, 'Fraud approved — transaction marked SUCCESS');
+          logger.info({ transactionId }, 'Fraud approved — transaction marked SUCCESS and credited');
         } else {
           // Rejected — compensation credit
           const [rows] = await conn.execute('SELECT * FROM transactions WHERE id=?', [transactionId]);
@@ -311,9 +318,10 @@ app.post('/transfer', async (req, res, next) => {
     }
   }
 
-  const conn = await pool.getConnection();
   let txId;
+  let conn;
   try {
+    conn = await pool.getConnection();
     // ── STEP 1: Create transaction record (INITIATED) ──
     await conn.beginTransaction();
     const timeoutAt = new Date(Date.now() + 30000); // 30-second saga timeout
@@ -325,6 +333,7 @@ app.post('/transfer', async (req, res, next) => {
     txId = txResult.insertId;
     await conn.commit();
     conn.release();
+    conn = null; // nullify to prevent double release in catch block
 
     log.info({ txId, fromAccountId, toAccountId, amount }, 'Transaction INITIATED');
 
@@ -436,8 +445,10 @@ app.post('/transfer', async (req, res, next) => {
 
     res.json(response);
   } catch (err) {
-    try { await conn.rollback(); } catch (_) {}
-    conn.release();
+    if (conn) {
+      try { await conn.rollback(); } catch (_) {}
+      conn.release();
+    }
     if (txId) {
       await pool.execute(
         "UPDATE transactions SET saga_state='FAILED', status='FAILED', updated_at=NOW() WHERE id=?", [txId]
