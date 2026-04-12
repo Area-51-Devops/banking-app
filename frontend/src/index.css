@@ -233,6 +233,12 @@ input::placeholder { color: var(--text-muted); }
 
 select option { background: var(--bg-base); color: var(--text-main); }
 
+/* Hide default browser password reveal icons */
+input::-ms-reveal,
+input::-ms-clear {
+  display: none;
+}
+
 /* ── Tables ─────────────────────────────────────── */
 .table-container { overflow-x: auto; border: 1px solid var(--border-subtle); border-radius: var(--radius-card); background: var(--bg-surface); }
 

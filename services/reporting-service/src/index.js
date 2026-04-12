@@ -102,34 +102,36 @@ app.get('/reports/summary/:userId', async (req, res, next) => {
          FROM loans WHERE user_id=? AND status='APPROVED'`, [userId]
     );
 
-    // Recent activity: last 10 items combining transfers + bill payments
-    const [recent] = await pool.execute(
-      `SELECT id, from_account_id, to_account_id, amount, status, created_at,
+    // Recent activity: Fetch top 10 from transactions and top 10 from payments, then merge in JS
+    const [recentTx] = await pool.execute(
+      `SELECT t.id, t.from_account_id, t.to_account_id, t.amount, t.status, t.created_at,
               'TRANSFER' AS activity_type, NULL AS biller_name,
-              from_account_number, to_account_number
-       FROM (
-         SELECT t.id, t.from_account_id, t.to_account_id, t.amount, t.status, t.created_at,
-                COALESCE(a1.account_number, 'LOAN CREDIT') AS from_account_number,
-                a2.account_number AS to_account_number
-         FROM transactions t
-         LEFT JOIN accounts a1 ON t.from_account_id = a1.id
-         LEFT JOIN accounts a2 ON t.to_account_id = a2.id
-         WHERE (t.from_account_id IN (SELECT id FROM accounts WHERE user_id=?)
-            OR  t.to_account_id   IN (SELECT id FROM accounts WHERE user_id=?))
-       ) AS tx_sub
+              COALESCE(a1.account_number, 'LOAN CREDIT') AS from_account_number,
+              a2.account_number AS to_account_number
+       FROM transactions t
+       LEFT JOIN accounts a1 ON t.from_account_id = a1.id
+       LEFT JOIN accounts a2 ON t.to_account_id = a2.id
+       WHERE (t.from_account_id IN (SELECT id FROM accounts WHERE user_id=?)
+          OR  t.to_account_id   IN (SELECT id FROM accounts WHERE user_id=?))
+       ORDER BY t.created_at DESC LIMIT 10`,
+      [userId, userId]
+    );
 
-       UNION ALL
-
-       SELECT CAST(p.id AS CHAR), p.account_id, NULL, p.amount, p.status, p.created_at,
-              'BILL_PAYMENT', p.biller_name,
-              a.account_number, NULL
+    const [recentPayments] = await pool.execute(
+      `SELECT CAST(p.id AS CHAR) AS id, p.account_id AS from_account_id, NULL AS to_account_id, p.amount, p.status, p.created_at,
+              'BILL_PAYMENT' AS activity_type, p.biller_name,
+              a.account_number AS from_account_number, NULL AS to_account_number
        FROM payments p
        JOIN accounts a ON p.account_id = a.id
        WHERE a.user_id=?
-
-       ORDER BY created_at DESC LIMIT 10`,
-      [userId, userId, userId]
+       ORDER BY p.created_at DESC LIMIT 10`,
+      [userId]
     );
+
+    // Merge, sort descending by date, and take top 10
+    const recent = [...recentTx, ...recentPayments]
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .slice(0, 10);
 
     res.json({
       success: true,
