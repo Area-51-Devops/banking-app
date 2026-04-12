@@ -8,6 +8,7 @@ RUN npm run build
 
 # ---- Runtime stage ----
 FROM nginx:alpine
+RUN apk upgrade --no-cache
 WORKDIR /usr/share/nginx/html
 
 # Copy build output (Vite: dist ; CRA: build)
