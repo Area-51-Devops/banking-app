@@ -1,4 +1,4 @@
-name: Account-Service-CI
+name: Config-Service-CI
 
 on:
   push:
@@ -20,13 +20,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-
       - name: Cache node_modules
         uses: actions/cache@v4
         with:
           path: services/config-service/node_modules
           key: ${{ runner.os }}-node-${{ hashFiles('services/config-service/package-lock.json') }}
-
 
       - name: Install dependencies
         run: npm install
@@ -35,7 +33,7 @@ jobs:
         uses: snyk/actions/node@master
         with:
           command: test
-          args: --file=services/config-service/package.json --severity-threshold=high
+          args: --file=package.json --severity-threshold=high
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
