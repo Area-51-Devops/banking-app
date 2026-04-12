@@ -33,7 +33,7 @@ jobs:
         uses: snyk/actions/node@master
         with:
           command: test
-          args: --file=package.json --severity-threshold=high
+          args: --file=services/config-service/package.json --severity-threshold=high
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
