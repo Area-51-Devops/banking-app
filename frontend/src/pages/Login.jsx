@@ -72,13 +72,13 @@ export default function Login() {
           }}>redefined.</span>
         </h1>
         <p style={{ color: "#8b949e", fontSize: "1.05rem", lineHeight: 1.7, marginBottom: "56px", maxWidth: "380px" }}>
-          Enterprise-grade banking infrastructure with real-time transfers, instant loans, and intelligent fraud protection.
+          Enterprise-grade banking infrastructure with real-time transfers, instant loans, and secure transaction processing.
         </p>
 
         {/* Feature pills */}
         {[
           { icon: "⚡", text: "Instant transfers — zero delays" },
-          { icon: "🛡️", text: "AI-powered fraud detection" },
+          { icon: "🛡️", text: "Enterprise-grade security" },
           { icon: "💼", text: "Loans approved in minutes" },
         ].map(f => (
           <div key={f.text} style={{

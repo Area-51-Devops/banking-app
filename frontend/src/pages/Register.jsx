@@ -109,8 +109,8 @@ export default function Register() {
 
         {/* Steps */}
         {[
-          { step: "01", title: "Create your account", sub: "Free — takes under a minute" },
-          { step: "02", title: "Fund your wallet", sub: "Top up instantly via UPI/NEFT" },
+          { step: "01", title: "Create your account", sub: "Free \u2014 takes under a minute" },
+          { step: "02", title: "Fund your account", sub: "Top up instantly" },
           { step: "03", title: "Transfer & grow", sub: "Loans, payments, and more" },
         ].map(s => (
           <div key={s.step} style={{
@@ -223,7 +223,7 @@ export default function Register() {
             {form.password && (
               <div style={{ marginBottom: "18px" }}>
                 <div style={{ display: "flex", gap: "4px", marginBottom: "4px" }}>
-                  {[1,2,3,4].map(i => (
+                  {[1, 2, 3, 4].map(i => (
                     <div key={i} style={{
                       flex: 1, height: "3px", borderRadius: "2px",
                       background: i <= strength ? strengthColor : "#21262d",
