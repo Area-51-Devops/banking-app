@@ -80,26 +80,50 @@ async function startConsumer(channel) {
       const notifs = [];
 
       switch (eventType) {
-        case 'TransactionCompleted':
-          notifs.push({ userId: raw.userId || raw.fromAccountId, msg: `Transfer of ${amt} completed successfully. Transaction #${raw.transactionId}` });
+        case 'TransactionCompleted': {
+          let senderUserId = raw.userId;
+          if (!senderUserId && raw.fromAccountId) {
+            const [acc] = await pool.execute('SELECT user_id FROM accounts WHERE id=?', [raw.fromAccountId]);
+            if (acc.length > 0) senderUserId = acc[0].user_id;
+          }
+          if (senderUserId) notifs.push({ userId: senderUserId, msg: `Transfer of ${amt} completed successfully. Transaction #${raw.transactionId}` });
           if (raw.toAccountId) {
             const [rows] = await pool.execute('SELECT user_id FROM accounts WHERE id=?', [raw.toAccountId]);
             if (rows.length > 0) notifs.push({ userId: rows[0].user_id, msg: `You received ${amt} in your account. Transaction #${raw.transactionId}` });
           }
           break;
-        case 'TransactionFlagged':
-          notifs.push({ userId: raw.userId || raw.fromAccountId, msg: `Your transfer of ${amt} is under fraud review. Transaction #${raw.transactionId}` });
+        }
+        case 'TransactionFlagged': {
+          let senderUserId = raw.userId;
+          if (!senderUserId && raw.fromAccountId) {
+            const [acc] = await pool.execute('SELECT user_id FROM accounts WHERE id=?', [raw.fromAccountId]);
+            if (acc.length > 0) senderUserId = acc[0].user_id;
+          }
+          if (senderUserId) notifs.push({ userId: senderUserId, msg: `Your transfer of ${amt} is under fraud review. Transaction #${raw.transactionId}` });
           break;
-        case 'FraudRejected':
-          notifs.push({ userId: raw.userId || raw.fromAccountId, msg: `Your transfer of ${amt} was blocked by fraud detection and reversed. Transaction #${raw.transactionId}` });
+        }
+        case 'FraudRejected': {
+          let senderUserId = raw.userId;
+          if (!senderUserId && raw.fromAccountId) {
+            const [acc] = await pool.execute('SELECT user_id FROM accounts WHERE id=?', [raw.fromAccountId]);
+            if (acc.length > 0) senderUserId = acc[0].user_id;
+          }
+          if (senderUserId) notifs.push({ userId: senderUserId, msg: `Your transfer of ${amt} was blocked by fraud detection and reversed. Transaction #${raw.transactionId}` });
           break;
-        case 'FraudApproved':
-          notifs.push({ userId: raw.userId || raw.fromAccountId, msg: `Your transfer of ${amt} passed fraud review and is complete. Transaction #${raw.transactionId}` });
+        }
+        case 'FraudApproved': {
+          let senderUserId = raw.userId;
+          if (!senderUserId && raw.fromAccountId) {
+            const [acc] = await pool.execute('SELECT user_id FROM accounts WHERE id=?', [raw.fromAccountId]);
+            if (acc.length > 0) senderUserId = acc[0].user_id;
+          }
+          if (senderUserId) notifs.push({ userId: senderUserId, msg: `Your transfer of ${amt} passed fraud review and is complete. Transaction #${raw.transactionId}` });
           if (raw.toAccountId) {
             const [rows] = await pool.execute('SELECT user_id FROM accounts WHERE id=?', [raw.toAccountId]);
             if (rows.length > 0) notifs.push({ userId: rows[0].user_id, msg: `You received ${amt} in your account. Transaction #${raw.transactionId}` });
           }
           break;
+        }
         case 'LoanApproved':
           notifs.push({ userId: raw.userId, msg: `🎉 Your loan of ${amt} has been approved and credited to your savings account!` });
           break;

@@ -318,19 +318,18 @@ app.post('/transfer', async (req, res, next) => {
     }
   }
 
-  let txId;
+  let txId = uuidv4();
   let conn;
   try {
     conn = await pool.getConnection();
     // ── STEP 1: Create transaction record (INITIATED) ──
     await conn.beginTransaction();
     const timeoutAt = new Date(Date.now() + 30000); // 30-second saga timeout
-    const [txResult] = await conn.execute(
-      `INSERT INTO transactions (from_account_id, to_account_id, amount, status, saga_state, idempotency_key, request_id, timeout_at)
-         VALUES (?,?,?,'INITIATED','INITIATED',?,?,?)`,
-      [fromAccountId, toAccountId, amount, idemKey || null, requestId, timeoutAt]
+    await conn.execute(
+      `INSERT INTO transactions (id, from_account_id, to_account_id, amount, status, saga_state, idempotency_key, request_id, timeout_at)
+         VALUES (?,?,?,?,'INITIATED','INITIATED',?,?,?)`,
+      [txId, fromAccountId, toAccountId, amount, idemKey || null, requestId, timeoutAt]
     );
-    txId = txResult.insertId;
     await conn.commit();
     conn.release();
     conn = null; // nullify to prevent double release in catch block
@@ -422,7 +421,7 @@ app.post('/transfer', async (req, res, next) => {
       await conn3.execute(
         "UPDATE transactions SET saga_state='SUCCESS', status='SUCCESS', updated_at=NOW() WHERE id=?", [txId]
       );
-      const payload = JSON.stringify({ transactionId: txId, fromAccountId, toAccountId, amount, requestId, userId: req.body.userId || fromAccountId });
+      const payload = JSON.stringify({ transactionId: txId, fromAccountId, toAccountId, amount, requestId, userId: req.body.userId });
       await conn3.execute(
         "INSERT INTO outbox_events (event_type, aggregate_id, payload, status) VALUES ('TransactionCompleted', ?, ?, 'UNPUBLISHED')",
         [String(txId), payload]

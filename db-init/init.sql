@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS accounts (
 --         DEBITED   -> FLAGGED           (fraud check pending)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS transactions (
-    id              INT AUTO_INCREMENT PRIMARY KEY,
+    id              VARCHAR(36) PRIMARY KEY,
     from_account_id INT,
     to_account_id   INT,
     amount          DECIMAL(15,2) NOT NULL,

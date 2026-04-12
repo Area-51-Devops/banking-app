@@ -24,7 +24,7 @@ export default function Navbar() {
     return () => clearInterval(id);
   }, [user]);
 
-  const handleLogout = () => { logout(); setMenuOpen(false); navigate("/login"); };
+  const handleLogout = () => { logout(); setMenuOpen(false); };
   const closeMenu = () => setMenuOpen(false);
 
   return (
