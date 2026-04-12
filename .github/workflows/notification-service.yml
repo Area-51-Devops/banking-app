@@ -3,12 +3,12 @@ name: Notification-Service-CI
 on:
   push:
     paths:
-      - 'services/notification-service/**'
+      - services/notification-service/**
   pull_request:
     paths:
-      - 'services/notification-service/**'
-
+      - services/notification-service/**
   workflow_dispatch:
+
     
 
 jobs:
