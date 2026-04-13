@@ -2,8 +2,7 @@
 WORKDIR /usr/src/app
 # Context is ./services, so copy paths must be relative to the services/ directory
 COPY payment-service/package*.json ./
-RUN npm cache clean --force && rm -f package-lock.json
-RUN npm install --production
+RUN npm ci --production
 COPY payment-service/src ./src
 COPY shared ./shared
 EXPOSE 3004
