@@ -16,7 +16,6 @@ on:
         type: boolean
         default: false
 
-
       sonar_project_key:
         required: true
         type: string
@@ -49,7 +48,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: ${{ inputs.working_directory }}
+        working-directory: ${{ inputs.working_directory }}  # services/account-service
 
     steps:
       - name: Checkout
@@ -80,7 +79,7 @@ jobs:
         timeout-minutes: 5
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        
+
       - name: Install dependencies
         run: npm ci || npm install
 
@@ -100,9 +99,12 @@ jobs:
 
       # -------- DOCKER BUILD --------
       - name: Build Docker Image
+        working-directory: services                        # ✅ Override default to services/
         run: |
           docker build \
-          -t ${{ secrets.DOCKER_USERNAME }}/${{ inputs.image_name }}:v1 .
+            -f ${{ inputs.image_name }}/Dockerfile \
+            -t ${{ secrets.DOCKER_USERNAME }}/${{ inputs.image_name }}:v1 \
+            .
 
       # -------- TRIVY --------
       - name: Trivy Scan
@@ -134,7 +136,7 @@ jobs:
           password: ${{ secrets.SMTP_PASSWORD }}
           subject: "CI Success - ${{ inputs.image_name }}"
           body: |
-            Build Successful 
+            Build Successful
             Image: ${{ inputs.image_name }}
             Workflow: ${{ github.workflow }}
             Repo: ${{ github.repository }}
@@ -152,15 +154,15 @@ jobs:
           subject: "CI Failed - ${{ inputs.image_name }} - Run #${{ github.run_number }}"
           body: |
             CI Pipeline Execution Failed
-      
+
             Service: ${{ inputs.image_name }}
             Repository: ${{ github.repository }}
             Workflow: ${{ github.workflow }}
-      
+
             Event Type: ${{ github.event_name }}
             Branch: ${{ github.ref_name }}
             Triggered By: ${{ github.actor }}
-      
+
             Logs:
             ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           to: ${{ secrets.EMAIL_TO }}
