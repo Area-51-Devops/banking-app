@@ -8,7 +8,7 @@ RUN apk update && apk upgrade --no-cache
 COPY fraud-detection-service/package*.json ./
 RUN npm ci --omit=dev
 COPY fraud-detection-service/src ./src
-COPY shared ./shared
+#COPY shared ./shared
 
 EXPOSE 3007
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
