@@ -2,6 +2,7 @@
 WORKDIR /usr/src/app
 # Context is ./services, so copy paths must be relative to the services/ directory
 COPY fraud-detection-service/package*.json ./
+RUN npm cache clean --force && rm -f package-lock.json
 RUN npm install --production
 COPY fraud-detection-service/src ./src
 COPY shared ./shared
