@@ -4,6 +4,8 @@ WORKDIR /usr/src/app
 # Upgrade all OS packages to latest patched versions
 RUN apk update && apk upgrade --no-cache
 
+#bmngfd
+
 # Context is ./services, so copy paths must be relative to the services/ directory
 COPY transaction-service/package*.json ./
 RUN npm ci --omit=dev
