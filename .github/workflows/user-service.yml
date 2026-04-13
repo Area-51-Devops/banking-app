@@ -50,7 +50,7 @@ jobs:
         with:
           image-ref: ${{ secrets.DOCKER_USERNAME }}/user-service:latest
           format: table
-          exit-code: 0
+          exit-code: 1
           severity: HIGH,CRITICAL
 
       - name: Docker Login
@@ -61,3 +61,6 @@ jobs:
 
       - name: Push Image
         run: docker push ${{ secrets.DOCKER_USERNAME }}/user-service:latest
+
+
+# nothing
