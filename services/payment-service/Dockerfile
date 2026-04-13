@@ -5,9 +5,9 @@ WORKDIR /usr/src/app
 RUN apk update && apk upgrade --no-cache
 
 # Context is ./services, so copy paths must be relative to the services/ directory
-COPY payment-service/package*.json ./
+COPY package*.json ./
 RUN npm ci --omit=dev
-COPY payment-service/src ./src
+COPY src ./src
 COPY shared ./shared
 
 EXPOSE 3004
