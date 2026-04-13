@@ -83,7 +83,7 @@ jobs:
 
       # -------- SNYK --------
       - name: Snyk Scan
-        uses: snyk/actions/node@v4
+        uses: snyk/actions/node@master
         with:
           command: test
           args: --file=${{ inputs.working_directory }}/package.json --severity-threshold=high
@@ -105,7 +105,7 @@ jobs:
 
       # -------- TRIVY --------
       - name: Trivy Scan
-        uses: aquasecurity/trivy-action@0.20.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: ${{ secrets.DOCKER_USERNAME }}/${{ inputs.image_name }}:v1
           format: table
