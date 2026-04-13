@@ -16,7 +16,7 @@ let pool;
 let isStarted = false;
 
 // ──────────────────────────────────────────────
-// Exponential backoff connector 12345
+// Exponential backoff connector 123456
 // ──────────────────────────────────────────────
 async function connectWithRetry(maxRetries = 10) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
