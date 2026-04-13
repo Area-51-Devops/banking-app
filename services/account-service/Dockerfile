@@ -4,11 +4,11 @@ WORKDIR /usr/src/app
 # Upgrade all OS packages to latest patched versions
 RUN apk update && apk upgrade --no-cache
 
-# Context is ./services, so copy paths must be relative to the services/ directory ...4
-COPY package*.json ./
+# Context is ./services, so copy paths must be relative to the services/ directory
+COPY account-service/package*.json ./
 RUN npm ci --omit=dev
-COPY src ./src
-#COPY shared ./shared
+COPY account-service/src ./src
+COPY shared ./shared
 
 EXPOSE 3002
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
