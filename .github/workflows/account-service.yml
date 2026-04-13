@@ -13,9 +13,10 @@ jobs:
   call-common:
     uses: ./.github/workflows/common-ci.yml
     with:
-      working_directory: services/account-service
+      working_directory: services
       image_name: account-service
       sonar_project_key: account-service   # ✅ unique Sonar project
+      docker_file_path: account-service
 
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
