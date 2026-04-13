@@ -1,4 +1,4 @@
-﻿FROM node:18-alpine
+﻿FROM node:20-slim
 WORKDIR /usr/src/app
 # Context is ./services, so copy paths must be relative to the services/ directory
 COPY user-service/package*.json ./
