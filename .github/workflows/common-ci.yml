@@ -155,9 +155,19 @@ jobs:
           server_port: ${{ secrets.SMTP_PORT }}
           username: ${{ secrets.SMTP_USERNAME }}
           password: ${{ secrets.SMTP_PASSWORD }}
-          subject: "CI Failed - ${{ inputs.image_name }}"
+          subject: "CI Failed - ${{ inputs.image_name }} - Run #${{ github.run_number }}"
           body: |
-            Build Failed 
-            Check logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            CI Pipeline Execution Failed
+      
+            Service: ${{ inputs.image_name }}
+            Repository: ${{ github.repository }}
+            Workflow: ${{ github.workflow }}
+      
+            Event Type: ${{ github.event_name }}
+            Branch: ${{ github.ref_name }}
+            Triggered By: ${{ github.actor }}
+      
+            Logs:
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           to: ${{ secrets.EMAIL_TO }}
           from: GitHub Actions
