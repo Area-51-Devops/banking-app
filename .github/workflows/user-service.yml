@@ -15,7 +15,6 @@ jobs:
     with:
       working_directory: services/user-service
       image_name: user-service
-      run_build: true
       sonar_project_key: user-service   # ✅ unique Sonar key
 
     secrets:

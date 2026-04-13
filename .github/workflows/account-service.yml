@@ -15,7 +15,6 @@ jobs:
     with:
       working_directory: services/account-service
       image_name: account-service
-      run_build: true
       sonar_project_key: account-service   # ✅ unique Sonar project
 
     secrets:
