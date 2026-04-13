@@ -15,7 +15,6 @@ jobs:
     with:
       working_directory: services/transaction-service
       image_name: transaction-service
-      dockerfile_path: services/transaction-service/
       build_context: services
       run_build: true
       sonar_project_key: transaction-service   # ✅ unique Sonar key

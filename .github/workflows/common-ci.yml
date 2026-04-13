@@ -99,7 +99,6 @@ jobs:
       - name: Build Docker Image
         run: |
           docker build \
-          -f ${{ inputs.dockerfile_path }} \
           -t ${{ secrets.DOCKER_USERNAME }}/${{ inputs.image_name }}:v1 \
           ${{ inputs.build_context }}
 
