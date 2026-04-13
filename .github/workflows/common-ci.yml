@@ -11,10 +11,6 @@ on:
         required: true
         type: string
 
-      dockerfile_path:
-        required: true
-        type: string
-
       build_context:
         required: true
         type: string
