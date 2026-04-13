@@ -8,7 +8,7 @@ RUN apk update && apk upgrade --no-cache
 COPY package*.json ./
 RUN npm ci --omit=dev
 COPY src ./src
-COPY shared ./shared
+#COPY shared ./shared
 
 EXPOSE 3002
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
