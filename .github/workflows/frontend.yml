@@ -15,7 +15,7 @@ jobs:
     with:
       working_directory: frontend
       image_name: frontend
-      dockerfile_path: frontend/Dockerfile
+      dockerfile_path: frontend/
       build_context: frontend
       run_build: true
       sonar_project_key: frontend   # ✅ unique key

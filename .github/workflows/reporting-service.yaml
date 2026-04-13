@@ -15,7 +15,7 @@ jobs:
     with:
       working_directory: services/reporting-service
       image_name: reporting-service
-      dockerfile_path: services/reporting-service/Dockerfile
+      dockerfile_path: services/reporting-service/
       build_context: services
       run_build: true
       sonar_project_key: reporting-service   # ✅ unique Sonar key

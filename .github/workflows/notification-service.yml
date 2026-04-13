@@ -15,7 +15,7 @@ jobs:
     with:
       working_directory: services/notification-service
       image_name: notification-service
-      dockerfile_path: services/notification-service/Dockerfile
+      dockerfile_path: services/notification-service/
       build_context: services
       run_build: true
       sonar_project_key: notification-service   # ✅ unique key

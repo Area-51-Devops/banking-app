@@ -15,7 +15,7 @@ jobs:
     with:
       working_directory: services/fraud-detection-service
       image_name: fraud-detection-service
-      dockerfile_path: services/fraud-detection-service/Dockerfile
+      dockerfile_path: services/fraud-detection-service/
       build_context: services
       run_build: true
       sonar_project_key: fraud-detection-service   # ✅ unique Sonar key

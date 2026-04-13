@@ -15,7 +15,7 @@ jobs:
     with:
       working_directory: services/account-service
       image_name: account-service
-      dockerfile_path: services/account-service/Dockerfile
+      dockerfile_path: services/account-service/
       build_context: services
       run_build: true
       sonar_project_key: account-service   # ✅ unique Sonar project

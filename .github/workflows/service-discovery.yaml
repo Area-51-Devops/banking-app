@@ -15,7 +15,7 @@ jobs:
     with:
       working_directory: services/service-discovery
       image_name: service-discovery
-      dockerfile_path: services/service-discovery/Dockerfile
+      dockerfile_path: services/service-discovery/
       build_context: services
       run_build: true
       sonar_project_key: service-discovery   # ✅ unique Sonar key
