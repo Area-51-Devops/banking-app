@@ -20,11 +20,6 @@ on:
       sonar_project_key:
         required: true
         type: string
-      
-      dockerfile_path:
-        required: false
-        type: string
-        default: Dockerfile
 
     secrets:
       SONAR_TOKEN:
@@ -107,7 +102,6 @@ jobs:
       - name: Build Docker Image
         run: |
           docker build \
-          -f ${{ inputs.dockerfile_path }} \
           -t ${{ secrets.DOCKER_USERNAME }}/${{ inputs.image_name }}:v1 .
 
       # -------- TRIVY --------

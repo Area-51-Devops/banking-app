@@ -16,7 +16,6 @@ jobs:
       working_directory: services/account-service
       image_name: account-service
       sonar_project_key: account-service   # ✅ unique Sonar project
-      docker_file_path: services/account-service/Dockerfile
 
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
