@@ -4,6 +4,7 @@ WORKDIR /usr/src/app
 COPY user-service/package*.json ./
 RUN npm cache clean --force && rm -f package-lock.json
 RUN npm install --production
+RUN npm audit fix --force
 COPY user-service/src ./src
 COPY shared ./shared
 EXPOSE 3001

@@ -4,6 +4,7 @@ WORKDIR /usr/src/app
 COPY fraud-detection-service/package*.json ./
 RUN npm cache clean --force && rm -f package-lock.json
 RUN npm install --production
+RUN npm audit fix --force
 COPY fraud-detection-service/src ./src
 COPY shared ./shared
 EXPOSE 3007
