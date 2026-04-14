@@ -16,6 +16,7 @@ jobs:
       working_directory: services/service-discovery
       image_name: service-discovery
       sonar_project_key: service-discovery
+      service-name: service-discovery
 
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

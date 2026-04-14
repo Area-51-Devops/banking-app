@@ -16,6 +16,7 @@ jobs:
       working_directory: services/reporting-service
       image_name: reporting-service
       sonar_project_key: reporting-service
+      service-name: reporting-service
 
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

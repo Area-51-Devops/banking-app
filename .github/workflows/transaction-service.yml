@@ -16,6 +16,7 @@ jobs:
       working_directory: services/transaction-service
       image_name: transaction-service
       sonar_project_key: transaction-service
+      service-name: transaction-service
 
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

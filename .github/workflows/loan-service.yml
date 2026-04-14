@@ -16,6 +16,7 @@ jobs:
       working_directory: services/loan-service
       image_name: loan-service
       sonar_project_key: loan-service
+      service-name: loan-service
 
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
