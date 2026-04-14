@@ -165,7 +165,7 @@ jobs:
 
       - name: Build Docker Image
         working-directory: ${{ inputs.docker_context }}
-        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/${{ inputs.service-name }}:${{ steps.tag.outputs.tag }} .
+        run: docker build -f ${{ inputs.dockerfile_path || format('{0}/Dockerfile', inputs.image_name) }} -t ${{ secrets.DOCKER_USERNAME }}/${{ inputs.service-name }}:${{ steps.tag.outputs.tag }} .
 
       # -------- TRIVY --------
       - name: Trivy Scan
