@@ -16,6 +16,7 @@ jobs:
       working_directory: services/fraud-detection-service
       image_name: fraud-detection-service
       sonar_project_key: fraud-detection-service
+      service-name: fraud-detection-service
 
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

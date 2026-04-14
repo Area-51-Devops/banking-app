@@ -16,6 +16,7 @@ jobs:
       working_directory: services/payment-service
       image_name: payment-service
       sonar_project_key: payment-service
+      service-name: payment-service
 
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
