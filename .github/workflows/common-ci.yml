@@ -164,7 +164,7 @@ jobs:
           fi
 
       - name: Build Docker Image
-        working-directory: ${{ inputs.working_directory }}
+        working-directory: ${{ inputs.docker_context }}
         run: docker build -t ${{ secrets.DOCKER_USERNAME }}/${{ inputs.service-name }}:${{ steps.tag.outputs.tag }} .
 
       # -------- TRIVY --------

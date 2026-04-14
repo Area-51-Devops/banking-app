@@ -17,6 +17,7 @@ jobs:
       image_name: account-service
       sonar_project_key: account-service
       service-name: account-service
+      docker_context: services
 
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
