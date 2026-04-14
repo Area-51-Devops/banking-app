@@ -123,8 +123,8 @@ jobs:
         with:
           image-ref: ${{ secrets.DOCKER_USERNAME }}/${{ inputs.image_name }}:v1
           format: table
-          exit-code: 0
-          severity: HIGH,CRITICAL
+          exit-code: 1
+          severity: CRITICAL
 
       # -------- PUSH --------
       - name: Docker Login
