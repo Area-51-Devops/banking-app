@@ -5,7 +5,7 @@ COPY package.json package-lock.json* pnpm-lock.yaml* yarn.lock* ./
 RUN npm install
 COPY . .
 RUN npm run build
-#hello
+#hello pa
 
 # ---- Runtime stage ------
 FROM nginx:alpine
