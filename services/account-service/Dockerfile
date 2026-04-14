@@ -3,7 +3,7 @@ WORKDIR /usr/src/app
 
 # Upgrade all OS packages to latest patched versions
 RUN apk update && apk upgrade --no-cache
-#dunny
+
 
 # Context is ./services, so copy paths must be relative to the services/ directory..
 COPY account-service/package*.json ./
