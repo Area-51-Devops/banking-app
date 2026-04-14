@@ -1,0 +1,30 @@
+name: Fraud-Detection-Service-CI
+
+on:
+  push:
+    paths:
+      - 'services/fraud-detection-service/**'
+  pull_request:
+    paths:
+      - 'services/fraud-detection-service/**'
+  workflow_dispatch:
+
+jobs:
+  call-common:
+    uses: ./.github/workflows/common-ci.yml
+    with:
+      working_directory: services/fraud-detection-service
+      image_name: fraud-detection-service
+      sonar_project_key: fraud-detection-service
+
+    secrets:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      SMTP_HOST: ${{ secrets.SMTP_HOST }}
+      SMTP_PORT: ${{ secrets.SMTP_PORT }}
+      SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+      SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+      EMAIL_TO: ${{ secrets.EMAIL_TO }}
