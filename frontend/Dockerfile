@@ -7,7 +7,7 @@ COPY . .
 RUN npm run build
 #hello
 
-# ---- Runtime stage ----
+# ---- Runtime stage ------
 FROM nginx:alpine
 RUN apk upgrade --no-cache
 WORKDIR /usr/share/nginx/html
