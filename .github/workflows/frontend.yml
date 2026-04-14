@@ -19,6 +19,7 @@ jobs:
       sonar_project_key: frontend
       docker_context: frontend
       dockerfile_path: Dockerfile
+      service-name: frontend
 
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

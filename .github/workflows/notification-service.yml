@@ -16,6 +16,7 @@ jobs:
       working_directory: services/notification-service
       image_name: notification-service
       sonar_project_key: notification-service
+      service-name: notification-service
 
     secrets:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
