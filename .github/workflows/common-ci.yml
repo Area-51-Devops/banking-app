@@ -64,11 +64,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Cache node_modules
+      - name: Cache npm cache
         uses: actions/cache@v4
         with:
-          path: ${{ inputs.working_directory }}/node_modules
-          key: ${{ runner.os }}-node-${{ hashFiles(format('{0}/package-lock.json', inputs.working_directory)) }}
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-${{ hashFiles(format('{0}/package-lock.json', inputs.working_directory)) }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
 
       # -------- SONAR --------
       - name: SonarQube Scan
