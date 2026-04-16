@@ -4,13 +4,13 @@ import axios from "axios";
 // This allows the app to work seamlessly when deployed on EC2 or anywhere else,
 // regardless of the public IP or DNS name.
 export const BASE_URLS = {
-  user:    "/api/user",
-  account: "/api/account",
-  tx:      "/api/tx",
-  payment: "/api/payment",
-  loan:    "/api/loan",
-  notify:  "/api/notify",
-  report:  "/api/report",
+  user:    import.meta.env.VITE_APP_USER_URL,
+  account: import.meta.env.VITE_APP_ACCOUNT_URL,
+  tx:      import.meta.env.VITE_APP_TRANSACTION_URL,
+  payment: import.meta.env.VITE_APP_PAYMENT_URL,
+  loan:    import.meta.env.VITE_APP_LOAN_URL,
+  notify:  import.meta.env.VITE_APP_NOTIFY_URL,
+  report:  import.meta.env.VITE_APP_REPORT_URL,
 };
 
 const timeout = 10000;
