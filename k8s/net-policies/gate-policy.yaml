@@ -1,0 +1,90 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# gate-policy — allow rules for the `gate` namespace (Kgateway pods)
+#
+# Ingress: External traffic from HAProxy on port 80
+# Egress:  → frontend (port 80)
+#          → backend services (ports 3001-3010)
+#          → kube-dns (port 53 UDP/TCP)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Allow external ingress to Kgateway pods on port 80
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-external-ingress
+  namespace: gate
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: 80
+          protocol: TCP
+      # No `from` block = allow from anywhere (HAProxy is external)
+
+---
+# Allow gate pods egress to frontend namespace (port 80)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-to-frontend
+  namespace: gate
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: frontend
+      ports:
+        - port: 80
+          protocol: TCP
+
+---
+# Allow gate pods egress to backend namespace (all service ports)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-to-backend
+  namespace: gate
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: backend
+      ports:
+        - port: 3001
+        - port: 3002
+        - port: 3003
+        - port: 3004
+        - port: 3005
+        - port: 3006
+        - port: 3007
+        - port: 3008
+        - port: 3009
+        - port: 3010
+
+---
+# Allow gate pods to reach kube-dns for service resolution
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-dns
+  namespace: gate
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP

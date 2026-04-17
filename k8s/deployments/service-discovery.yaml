@@ -1,0 +1,66 @@
+# service-discovery — Namespace: backend — Port: 3009
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-discovery
+  namespace: backend
+  labels:
+    app: service-discovery
+spec:
+  ports:
+    - port: 3009
+      targetPort: 3009
+  selector:
+    app: service-discovery
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-discovery
+  namespace: backend
+  labels:
+    app: service-discovery
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-discovery
+  template:
+    metadata:
+      labels:
+        app: service-discovery
+    spec:
+      containers:
+        - name: service-discovery
+          image: aswin2003/service-discovery:latest   # TODO: replace aswin2003
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3009
+          env:
+            - name: PORT
+              value: "3009"
+            - name: SERVICE_NAME
+              value: service-discovery
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3009
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3009
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "64Mi"
+            limits:
+              cpu: "200m"
+              memory: "128Mi"

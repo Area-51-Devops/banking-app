@@ -1,0 +1,59 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# nginx ConfigMap for the frontend pod
+# Namespace: frontend
+#
+# ROUTING STRATEGY:
+#   Primary  (Kgateway HTTPRoutes): /api/user/, /api/account/, /api/tx/,
+#                                   /api/loan/, /api/report/
+#   Fallback (nginx proxy_pass) :  /api/payment/, /api/notify/
+#                                   (catch-all front_route sends these to nginx)
+#
+# Proxy targets use full backend namespace FQDNs because frontend ns ≠ backend ns.
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-config
+  namespace: frontend
+data:
+  default.conf: |
+    server {
+      listen 80;
+      server_name _;
+
+      root /usr/share/nginx/html;
+      index index.html;
+
+      # ── SPA routing ──────────────────────────────────────────────────────
+      location / {
+        try_files $uri /index.html;
+      }
+
+      # ── Fallback proxies (services NOT handled by Gateway HTTPRoutes) ─────
+      # NOTE: /api/user/, /api/account/, /api/tx/, /api/loan/, /api/report/
+      #       are intercepted by Kgateway BEFORE reaching this nginx.
+      #       Only /api/payment/ and /api/notify/ fall through here.
+
+      location /api/payment/ {
+        proxy_pass http://payment-service.backend.svc.cluster.local:3004/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 30s;
+      }
+
+      location /api/notify/ {
+        proxy_pass http://notification-service.backend.svc.cluster.local:3006/;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 30s;
+      }
+
+      # ── Static asset caching ──────────────────────────────────────────────
+      location ~* \.(js|css|png|jpg|jpeg|gif|svg|ico|woff2?|ttf|eot)$ {
+        expires 30d;
+        add_header Cache-Control "public, immutable";
+        try_files $uri /index.html;
+      }
+    }

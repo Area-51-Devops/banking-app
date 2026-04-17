@@ -1,0 +1,121 @@
+# transaction-service — Namespace: backend — Port: 3003
+# Depends on: mysql (data), rabbitmq (data), account-service, config-service (backend)
+apiVersion: v1
+kind: Service
+metadata:
+  name: transaction-service
+  namespace: backend
+  labels:
+    app: transaction-service
+spec:
+  ports:
+    - port: 3003
+      targetPort: 3003
+  selector:
+    app: transaction-service
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: transaction-service
+  namespace: backend
+  labels:
+    app: transaction-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: transaction-service
+  template:
+    metadata:
+      labels:
+        app: transaction-service
+    spec:
+      initContainers:
+        - name: wait-for-mysql
+          image: busybox:1.36
+          command: ['sh', '-c', 'until nc -z mysql.data.svc.cluster.local 3306; do echo "Waiting for MySQL..."; sleep 3; done']
+        - name: wait-for-rabbitmq
+          image: busybox:1.36
+          command: ['sh', '-c', 'until nc -z rabbitmq.data.svc.cluster.local 5672; do echo "Waiting for RabbitMQ..."; sleep 3; done']
+        - name: wait-for-account
+          image: busybox:1.36
+          command: ['sh', '-c', 'until wget -qO- http://account-service:3002/health/startup 2>/dev/null | grep -q UP; do echo "Waiting for account-service..."; sleep 5; done']
+        - name: wait-for-config
+          image: busybox:1.36
+          command: ['sh', '-c', 'until wget -qO- http://config-service:3008/health/startup 2>/dev/null | grep -q UP; do echo "Waiting for config-service..."; sleep 5; done']
+      containers:
+        - name: transaction-service
+          image: aswin2003/transaction-service:latest   # TODO: replace aswin2003
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3003
+          env:
+            - name: PORT
+              value: "3003"
+            - name: SERVICE_NAME
+              value: transaction-service
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: banking-config
+                  key: DB_HOST
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: banking-config
+                  key: DB_NAME
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: banking-secrets
+                  key: DB_USER
+            - name: DB_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: banking-secrets
+                  key: DB_PASS
+            - name: MQ_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: banking-config
+                  key: MQ_URL
+            - name: ACCOUNT_SVC_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: banking-config
+                  key: ACCOUNT_SVC_URL
+            - name: CONFIG_SVC_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: banking-config
+                  key: CONFIG_SVC_URL
+          startupProbe:
+            httpGet:
+              path: /health/startup
+              port: 3003
+            failureThreshold: 40
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health/liveness
+              port: 3003
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 4
+          readinessProbe:
+            httpGet:
+              path: /health/readiness
+              port: 3003
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"

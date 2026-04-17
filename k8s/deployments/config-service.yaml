@@ -1,0 +1,87 @@
+# config-service — Namespace: backend — Port: 3008
+# Depends on: redis (data)
+apiVersion: v1
+kind: Service
+metadata:
+  name: config-service
+  namespace: backend
+  labels:
+    app: config-service
+spec:
+  ports:
+    - port: 3008
+      targetPort: 3008
+  selector:
+    app: config-service
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: config-service
+  namespace: backend
+  labels:
+    app: config-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: config-service
+  template:
+    metadata:
+      labels:
+        app: config-service
+    spec:
+      initContainers:
+        - name: wait-for-redis
+          image: busybox:1.36
+          command: ['sh', '-c', 'until nc -z redis.data.svc.cluster.local 6379; do echo "Waiting for Redis..."; sleep 3; done']
+      containers:
+        - name: config-service
+          image: aswin2003/config-service:latest   # TODO: replace aswin2003 with your Docker Hub username
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3008
+          env:
+            - name: PORT
+              value: "3008"
+            - name: SERVICE_NAME
+              value: config-service
+            - name: REDIS_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: banking-config
+                  key: REDIS_HOST
+            - name: REDIS_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: banking-config
+                  key: REDIS_PORT
+          startupProbe:
+            httpGet:
+              path: /health/startup
+              port: 3008
+            failureThreshold: 30
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health/startup
+              port: 3008
+            initialDelaySeconds: 5
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 4
+          readinessProbe:
+            httpGet:
+              path: /health/startup
+              port: 3008
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "128Mi"
+            limits:
+              cpu: "200m"
+              memory: "256Mi"

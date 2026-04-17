@@ -1,0 +1,49 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Kyverno ClusterPolicy: Image Registry Enforcement
+#
+# Requires: Kyverno
+#   kubectl create -f https://github.com/kyverno/kyverno/releases/latest/download/install.yaml
+#
+# Policy: Only allow images from docker.io/<your-registry>/
+# Update the allowedRegistries list to match your actual registry.
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: banking-image-policy
+  annotations:
+    policies.kyverno.io/title: Restrict Image Registries
+    policies.kyverno.io/description: >
+      Only images from the approved registry (aswin2003/ on Docker Hub) are
+      allowed in the banking namespaces. Update allowedRegistries to match
+      your actual Docker Hub username or private registry URL.
+spec:
+  validationFailureAction: Enforce   # Change to Audit during initial rollout
+  background: true
+  rules:
+    - name: restrict-image-registry
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces:
+                - frontend
+                - backend
+                - data
+      exclude:
+        any:
+          - resources:
+              # Exclude infra images (busybox, mysql, redis, rabbitmq)
+              annotations:
+                kyverno.io/ignore: "true"
+      validate:
+        message: >
+          Image '{{ image }}' is not from an approved registry.
+          Only images from 'aswin2003/' are allowed.
+          Update bankingImagePolicy.yaml if you changed your registry.
+        pattern:
+          spec:
+            initContainers:
+              - =(image): "busybox:*"    # allow initContainer busybox
+            containers:
+              - image: "aswin2003/*"     # TODO: replace aswin2003 with your username

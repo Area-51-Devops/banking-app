@@ -1,0 +1,81 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# data-policy — allow rules for the `data` namespace
+#
+# Ingress: from backend namespace only (microservices connect to DBs)
+#          from data namespace itself (intra: MySQL replication etc.)
+# Egress:  → data itself (intra)
+#          → kube-dns
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Allow ingress from backend namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-from-backend
+  namespace: data
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: backend
+      ports:
+        - port: 3306   # MySQL
+        - port: 6379   # Redis
+        - port: 5672   # RabbitMQ AMQP
+        - port: 15672  # RabbitMQ management (internal)
+
+---
+# Allow intra-data ingress (MySQL StatefulSet pod-to-pod)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-intra-data
+  namespace: data
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: data
+
+---
+# Allow intra-data egress (MySQL pod DNS lookups to its own headless service)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-intra-data
+  namespace: data
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: data
+
+---
+# Allow egress to kube-dns
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-dns
+  namespace: data
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP

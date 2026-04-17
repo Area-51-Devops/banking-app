@@ -1,0 +1,28 @@
+# HPA — transaction-service
+# Scales 1→8 replicas — high-throughput, saga-driven, most computationally intensive
+# Requires: metrics-server
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: transaction-service-hpa
+  namespace: backend
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: transaction-service
+  minReplicas: 1
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 75

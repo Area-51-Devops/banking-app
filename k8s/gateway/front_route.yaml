@@ -1,0 +1,27 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# front_route — catch-all route for the React SPA
+#
+# Matches ALL paths not caught by more-specific API routes.
+# Sends to: frontend Service (frontend namespace)
+#
+# Path precedence in Gateway API: more-specific prefixes win.
+# /api/user/ (in user_route.yaml) beats /* (here) automatically.
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: frontend-route
+  namespace: gate
+spec:
+  parentRefs:
+    - name: banking-gateway
+      namespace: gate
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: frontend
+          namespace: frontend   # cross-namespace — covered by ReferenceGrant in gateway.yaml
+          port: 80

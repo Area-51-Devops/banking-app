@@ -1,0 +1,90 @@
+# fraud-detection — Namespace: backend — Port: 3007
+# Depends on: rabbitmq (data), config-service (backend)
+apiVersion: v1
+kind: Service
+metadata:
+  name: fraud-detection-service
+  namespace: backend
+  labels:
+    app: fraud-detection-service
+spec:
+  ports:
+    - port: 3007
+      targetPort: 3007
+  selector:
+    app: fraud-detection-service
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fraud-detection-service
+  namespace: backend
+  labels:
+    app: fraud-detection-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fraud-detection-service
+  template:
+    metadata:
+      labels:
+        app: fraud-detection-service
+    spec:
+      initContainers:
+        - name: wait-for-rabbitmq
+          image: busybox:1.36
+          command: ['sh', '-c', 'until nc -z rabbitmq.data.svc.cluster.local 5672; do echo "Waiting for RabbitMQ..."; sleep 3; done']
+        - name: wait-for-config
+          image: busybox:1.36
+          command: ['sh', '-c', 'until wget -qO- http://config-service:3008/health/startup 2>/dev/null | grep -q UP; do echo "Waiting for config-service..."; sleep 5; done']
+      containers:
+        - name: fraud-detection-service
+          image: aswin2003/fraud-detection-service:latest   # TODO: replace aswin2003
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3007
+          env:
+            - name: PORT
+              value: "3007"
+            - name: SERVICE_NAME
+              value: fraud-detection-service
+            - name: MQ_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: banking-config
+                  key: MQ_URL
+            - name: CONFIG_SVC_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: banking-config
+                  key: CONFIG_SVC_URL
+          startupProbe:
+            httpGet:
+              path: /health/startup
+              port: 3007
+            failureThreshold: 30
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health/startup
+              port: 3007
+            initialDelaySeconds: 10
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 4
+          readinessProbe:
+            httpGet:
+              path: /health/startup
+              port: 3007
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "300m"
+              memory: "256Mi"
