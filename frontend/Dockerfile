@@ -12,7 +12,7 @@ FROM nginx:alpine
 RUN apk upgrade --no-cache
 WORKDIR /usr/share/nginx/html
 
-# Copy build output (Vite: dist ; CRA: build)
+# Copy build output (Vite: dist ; CRA: build)78
 COPY --from=build /app/dist ./
 
 # Nginx config for SPA and API proxying
