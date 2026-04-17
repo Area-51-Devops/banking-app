@@ -46,7 +46,7 @@ spec:
           command: ['sh', '-c', 'until wget -qO- http://account-service.backend.svc.cluster.local:3002/health/startup 2>/dev/null | grep -q UP; do echo "Waiting for account-service..."; sleep 5; done']
       containers:
         - name: frontend
-          image: aswin2003/frontend:latest   # TODO: replace aswin2003
+          image: area51devops/banking-app-frontend:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 80

@@ -32,7 +32,7 @@ spec:
     spec:
       containers:
         - name: service-discovery
-          image: aswin2003/service-discovery:latest   # TODO: replace aswin2003
+          image: area51devops/banking-app-service-discovery:latest   # TODO: replace aswin2003
           imagePullPolicy: Always
           ports:
             - containerPort: 3009
