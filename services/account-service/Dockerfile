@@ -5,7 +5,7 @@ WORKDIR /usr/src/app
 RUN apk update && apk upgrade --no-cache
 #dunny
 
-# Context is ./services, so copy paths must be relative to the services/ directory..
+# Context is ./services, so copy paths must be relative to the services/ directory....
 COPY account-service/package*.json ./
 RUN npm ci --omit=dev
 COPY account-service/src ./src
