@@ -46,7 +46,7 @@ spec:
           command: ['sh', '-c', 'until wget -qO- http://config-service:3008/health/startup 2>/dev/null | grep -q UP; do echo "Waiting for config-service..."; sleep 5; done']
       containers:
         - name: transaction-service
-          image: aswin2003/transaction-service:latest   # TODO: replace aswin2003
+          image: area51devops/transaction-service:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3003

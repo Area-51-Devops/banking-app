@@ -37,7 +37,7 @@ spec:
           command: ['sh', '-c', 'until nc -z mysql.data.svc.cluster.local 3306; do echo "Waiting for MySQL..."; sleep 3; done']
       containers:
         - name: account-service
-          image: aswin2003/account-service:latest   # TODO: replace aswin2003
+          image: area51devops/account-service:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3002
