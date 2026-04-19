@@ -37,6 +37,8 @@ k8s/
 │   ├── account_route.yaml       ← /api/account/ → account-service:3002
 │   ├── tx_route.yaml            ← /api/tx/ → transaction-service:3003
 │   ├── loan_route.yaml          ← /api/loan/ → loan-service:3005
+│   ├── payment_route.yaml       ← /api/payment/ → payment-service:3004
+│   ├── notify_route.yaml        ← /api/notify/ → notification-service:3006
 │   └── report_route.yaml        ← /api/report/ → reporting-service:3010
 ├── autoscaling/hpa/             ← Optional: requires metrics-server
 │   ├── frontend-hpa.yaml        ← 1-5 replicas @ 70% CPU
@@ -68,16 +70,16 @@ HAProxy (external LB)
   v
 Kgateway Gateway (gate ns, port 80)
   |
-  +-- /api/user/      -[rewrite]-> user-service.backend:3001
-  +-- /api/account/   -[rewrite]-> account-service.backend:3002
-  +-- /api/tx/        -[rewrite]-> transaction-service.backend:3003
-  +-- /api/loan/      -[rewrite]-> loan-service.backend:3005
-  +-- /api/report/    -[rewrite]-> reporting-service.backend:3010
+  +-- /api/user/      -[rewrite]--> user-service.backend:3001
+  +-- /api/account/   -[rewrite]--> account-service.backend:3002
+  +-- /api/tx/        -[rewrite]--> transaction-service.backend:3003
+  +-- /api/loan/      -[rewrite]--> loan-service.backend:3005
+  +-- /api/payment/   -[rewrite]--> payment-service.backend:3004
+  +-- /api/notify/    -[rewrite]--> notification-service.backend:3006
+  +-- /api/report/    -[rewrite]--> reporting-service.backend:3010
   |
-  +-- /* (catch-all)  -----------> frontend.frontend:80 (nginx)
+  +-- /* (catch-all)  ----------->  frontend.frontend:80 (nginx)
                                        |
-                                       +-- /api/payment/  -[proxy]-> payment-service.backend:3004
-                                       +-- /api/notify/   -[proxy]-> notification-service.backend:3006
                                        +-- /*  -----------> index.html (SPA)
 ```
 

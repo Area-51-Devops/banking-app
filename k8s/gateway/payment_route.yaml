@@ -1,0 +1,36 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# payment_route — Kgateway HTTPRoute for /api/payment/
+#
+# Path rewrite: /api/payment/transfer → /transfer
+#   prefix /api/payment/ is stripped, replaced with / then remainder appended
+#
+# Browser calls:  /api/payment/transfer
+# payment-service receives: /transfer
+#
+# Namespace: gate
+# Backend:   payment-service.backend:3004
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: payment-route
+  namespace: gate
+spec:
+  parentRefs:
+    - name: banking-gateway
+      namespace: gate
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/payment/
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      backendRefs:
+        - name: payment-service
+          namespace: backend
+          port: 3004

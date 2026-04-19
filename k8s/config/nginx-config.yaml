@@ -3,12 +3,14 @@
 # Namespace: frontend
 #
 # ROUTING STRATEGY:
-#   Primary  (Kgateway HTTPRoutes): /api/user/, /api/account/, /api/tx/,
-#                                   /api/loan/, /api/report/
-#   Fallback (nginx proxy_pass) :  /api/payment/, /api/notify/
-#                                   (catch-all front_route sends these to nginx)
+#   All API routing is handled centrally by Kgateway HTTPRoutes:
+#     /api/user/, /api/account/, /api/tx/, /api/loan/, /api/report/,
+#     /api/payment/, /api/notify/
 #
-# Proxy targets use full backend namespace FQDNs because frontend ns ≠ backend ns.
+#   Nginx responsibilities (frontend pod only):
+#     1. Serve the static SPA bundle (React/Angular/Vue)
+#     2. SPA client-side routing fallback (try_files → index.html)
+#     3. Static asset caching (js, css, images, fonts)
 # ─────────────────────────────────────────────────────────────────────────────
 apiVersion: v1
 kind: ConfigMap
@@ -25,29 +27,10 @@ data:
       index index.html;
 
       # ── SPA routing ──────────────────────────────────────────────────────
+      # All /api/* paths are intercepted by Kgateway before reaching nginx.
+      # This location serves the SPA shell for all non-asset client routes.
       location / {
         try_files $uri /index.html;
-      }
-
-      # ── Fallback proxies (services NOT handled by Gateway HTTPRoutes) ─────
-      # NOTE: /api/user/, /api/account/, /api/tx/, /api/loan/, /api/report/
-      #       are intercepted by Kgateway BEFORE reaching this nginx.
-      #       Only /api/payment/ and /api/notify/ fall through here.
-
-      location /api/payment/ {
-        proxy_pass http://payment-service.backend.svc.cluster.local:3004/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_read_timeout 30s;
-      }
-
-      location /api/notify/ {
-        proxy_pass http://notification-service.backend.svc.cluster.local:3006/;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_read_timeout 30s;
       }
 
       # ── Static asset caching ──────────────────────────────────────────────

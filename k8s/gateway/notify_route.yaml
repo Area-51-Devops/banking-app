@@ -1,0 +1,36 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# notify_route — Kgateway HTTPRoute for /api/notify/
+#
+# Path rewrite: /api/notify/send → /send
+#   prefix /api/notify/ is stripped, replaced with / then remainder appended
+#
+# Browser calls:  /api/notify/send
+# notification-service receives: /send
+#
+# Namespace: gate
+# Backend:   notification-service.backend:3006
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: notify-route
+  namespace: gate
+spec:
+  parentRefs:
+    - name: banking-gateway
+      namespace: gate
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/notify/
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      backendRefs:
+        - name: notification-service
+          namespace: backend
+          port: 3006
