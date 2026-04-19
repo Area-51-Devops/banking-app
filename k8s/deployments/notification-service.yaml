@@ -40,7 +40,7 @@ spec:
           command: ['sh', '-c', 'until nc -z rabbitmq.data.svc.cluster.local 5672; do echo "Waiting for RabbitMQ..."; sleep 3; done']
       containers:
         - name: notification-service
-          image: area51devops/notification-service:latest
+          image: aswin1015/notification-service:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3006

@@ -43,7 +43,7 @@ spec:
           command: ['sh', '-c', 'until wget -qO- http://account-service:3002/health/startup 2>/dev/null | grep -q UP; do echo "Waiting for account-service..."; sleep 5; done']
       containers:
         - name: loan-service
-          image: area51devops/loan-service:latest
+          image: aswin1015/loan-service:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3005

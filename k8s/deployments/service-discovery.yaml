@@ -32,7 +32,7 @@ spec:
     spec:
       containers:
         - name: service-discovery
-          image: area51devops/service-discovery:latest
+          image: aswin1015/service-discovery:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3009
