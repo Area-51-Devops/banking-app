@@ -37,7 +37,7 @@ spec:
           command: ['sh', '-c', 'until nc -z redis.data.svc.cluster.local 6379; do echo "Waiting for Redis..."; sleep 3; done']
       containers:
         - name: config-service
-          image: aswin1015/config-service:latest
+          image: area51devops/config-service:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3008

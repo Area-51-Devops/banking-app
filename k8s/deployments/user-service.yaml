@@ -40,7 +40,7 @@ spec:
           command: ['sh', '-c', 'until nc -z redis.data.svc.cluster.local 6379; do echo "Waiting for Redis..."; sleep 3; done']
       containers:
         - name: user-service
-          image: aswin1015/user-service:latest
+          image: area51devops/user-service:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3001

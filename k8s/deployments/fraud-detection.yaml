@@ -40,7 +40,7 @@ spec:
           command: ['sh', '-c', 'until wget -qO- http://config-service:3008/health/startup 2>/dev/null | grep -q UP; do echo "Waiting for config-service..."; sleep 5; done']
       containers:
         - name: fraud-detection-service
-          image: aswin1015/fraud-detection-service:latest
+          image: area51devops/fraud-detection-service:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3007

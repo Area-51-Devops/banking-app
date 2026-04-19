@@ -37,7 +37,7 @@ spec:
           command: ['sh', '-c', 'until nc -z mysql.data.svc.cluster.local 3306; do echo "Waiting for MySQL..."; sleep 3; done']
       containers:
         - name: reporting-service
-          image: aswin1015/reporting-service:latest
+          image: area51devops/reporting-service:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3010
