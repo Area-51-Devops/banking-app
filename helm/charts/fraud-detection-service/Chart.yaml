@@ -1,0 +1,12 @@
+apiVersion: v2
+name: fraud-detection-service
+description: NexusBank Fraud Detection Service – listens to RabbitMQ events and analyses transactions for fraudulent patterns
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - banking
+  - fraud
+  - microservice
+maintainers:
+  - name: area-51-devops

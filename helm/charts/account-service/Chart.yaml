@@ -1,0 +1,12 @@
+apiVersion: v2
+name: account-service
+description: NexusBank Account Service – manages bank accounts, debit/credit, and balance operations
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - banking
+  - account
+  - microservice
+maintainers:
+  - name: area-51-devops

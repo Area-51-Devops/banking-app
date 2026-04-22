@@ -1,0 +1,9 @@
+apiVersion: v2
+name: reporting-service
+description: NexusBank Reporting Service – analytics and financial reporting from MySQL
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords: [banking, reporting, microservice]
+maintainers:
+  - name: area-51-devops

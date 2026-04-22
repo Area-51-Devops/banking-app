@@ -1,0 +1,9 @@
+apiVersion: v2
+name: service-discovery
+description: NexusBank Service Discovery
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords: [banking, discovery, microservice]
+maintainers:
+  - name: area-51-devops

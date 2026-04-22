@@ -1,0 +1,30 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# account_route — direct Gateway routing for /api/account/
+#
+# Browser calls:  /api/account/accounts/123
+# account-service receives: /accounts/123
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: account-route
+  namespace: gate
+spec:
+  parentRefs:
+    - name: banking-gateway
+      namespace: gate
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/account/
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      backendRefs:
+        - name: account-service
+          namespace: backend
+          port: 3002

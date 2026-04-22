@@ -1,0 +1,60 @@
+namespace: backend
+image:
+  repository: area51devops/config-service
+  tag: "v0.0.3"
+  pullPolicy: IfNotPresent
+replicaCount: 1
+service:
+  type: ClusterIP
+  port: 3008
+  targetPort: 3008
+config:
+  PORT: "3008"
+  SERVICE_NAME: "config-service"
+  REDIS_HOST: "redis.data.svc.cluster.local"
+  REDIS_PORT: "6379"
+initContainers:
+  waitForRedis:
+    enabled: true
+    image: busybox:1.36
+    host: "redis.data.svc.cluster.local"
+    port: 6379
+probes:
+  startup:
+    path: /health/startup
+    failureThreshold: 30
+    periodSeconds: 5
+  liveness:
+    path: /health/startup
+    initialDelaySeconds: 5
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 4
+  readiness:
+    path: /health/startup
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+resources:
+  requests:
+    cpu: "50m"
+    memory: "128Mi"
+  limits:
+    cpu: "200m"
+    memory: "256Mi"
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  targetCPUUtilizationPercentage: 70
+podDisruptionBudget:
+  enabled: false
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  readOnlyRootFilesystem: false
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: [ALL]
+podAnnotations: {}

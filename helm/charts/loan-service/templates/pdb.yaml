@@ -1,0 +1,14 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "loan-service.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "loan-service.labels" . | nindent 4 }}
+spec:
+  minAvailable: {{ .Values.podDisruptionBudget.minAvailable }}
+  selector:
+    matchLabels:
+      {{- include "loan-service.selectorLabels" . | nindent 6 }}
+{{- end }}

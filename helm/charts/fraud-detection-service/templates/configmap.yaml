@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "fraud-detection-service.fullname" . }}-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "fraud-detection-service.labels" . | nindent 4 }}
+data:
+  PORT: {{ .Values.config.PORT | quote }}
+  SERVICE_NAME: {{ .Values.config.SERVICE_NAME | quote }}
+  MQ_URL: {{ .Values.config.MQ_URL | quote }}
+  CONFIG_SVC_URL: {{ .Values.config.CONFIG_SVC_URL | quote }}

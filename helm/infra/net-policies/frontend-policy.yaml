@@ -1,0 +1,66 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# frontend-policy — allow rules for the `frontend` namespace
+#
+# Ingress: from gate namespace only (Kgateway sends traffic here)
+# Egress:  → backend (ports 3004, 3006 — payment/notify proxy fallback)
+#          → kube-dns
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Allow ingress from gate namespace (Kgateway) on port 80
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-from-gate
+  namespace: frontend
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: gate
+      ports:
+        - port: 80
+          protocol: TCP
+
+---
+# Allow egress to backend for nginx fallback proxy (/api/payment/, /api/notify/)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-to-backend-fallback
+  namespace: frontend
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: backend
+      ports:
+        - port: 3004   # payment-service
+          protocol: TCP
+        - port: 3006   # notification-service
+          protocol: TCP
+
+---
+# Allow egress to kube-dns
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-dns
+  namespace: frontend
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP

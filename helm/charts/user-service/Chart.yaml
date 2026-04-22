@@ -1,0 +1,9 @@
+apiVersion: v2
+name: user-service
+description: NexusBank User Service – authentication, registration, JWT issuing
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords: [banking, auth, microservice]
+maintainers:
+  - name: area-51-devops

@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "account-service.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "account-service.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "account-service.selectorLabels" . | nindent 6 }}
+  # Ensure zero-downtime rollouts: one new pod starts before an old one is removed.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        {{- include "account-service.selectorLabels" . | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      # ── Security ────────────────────────────────────────────
+      securityContext:
+        runAsNonRoot: {{ .Values.securityContext.runAsNonRoot }}
+        runAsUser: {{ .Values.securityContext.runAsUser }}
+
+      # ── Graceful shutdown ────────────────────────────────────
+      # Allow 30 s for in-flight requests to drain before SIGKILL.
+      terminationGracePeriodSeconds: 30
+
+      # ── Init Containers ──────────────────────────────────────
+      initContainers:
+        {{- if .Values.initContainers.waitForMySQL.enabled }}
+        - name: wait-for-mysql
+          image: {{ .Values.initContainers.waitForMySQL.image }}
+          command: ['sh', '-c', 'until nc -z {{ .Values.initContainers.waitForMySQL.host }} {{ .Values.initContainers.waitForMySQL.port }}; do echo "Waiting for MySQL..."; sleep 3; done']
+        {{- end }}
+
+      containers:
+        - name: account-service
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+
+          # ── Environment ───────────────────────────────────────
+          envFrom:
+            - secretRef:
+                name: {{ include "account-service.fullname" . }}-secret
+            - configMapRef:
+                name: {{ include "account-service.fullname" . }}-config
+
+          # ── Probes ────────────────────────────────────────────
+          # startupProbe: gates liveness/readiness until the app has fully
+          # booted and connected to MySQL (exponential backoff can take ~30 s).
+          startupProbe:
+            httpGet:
+              path: {{ .Values.probes.startup.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+
+          # readinessProbe: removes pod from Service endpoints if MySQL is
+          # unreachable so no traffic is sent to a degraded instance.
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+
+          # livenessProbe: restarts the pod if it becomes permanently unhealthy.
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+
+          # ── Resources ─────────────────────────────────────────
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+
+          # ── Container Security ────────────────────────────────
+          securityContext:
+            allowPrivilegeEscalation: {{ .Values.securityContext.allowPrivilegeEscalation }}
+            readOnlyRootFilesystem: {{ .Values.securityContext.readOnlyRootFilesystem }}
+            capabilities:
+              {{- toYaml .Values.securityContext.capabilities | nindent 14 }}

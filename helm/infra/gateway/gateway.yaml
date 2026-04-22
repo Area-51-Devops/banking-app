@@ -1,0 +1,56 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Kgateway — Gateway resource + ReferenceGrants
+#
+# The Gateway lives in `gate` namespace.
+# HTTPRoutes (in separate files) are also in `gate` namespace but reference
+# Services in `frontend` and `backend` namespaces — ReferenceGrants below
+# authorize those cross-namespace references.
+#
+# Verify GatewayClass: kubectl get gatewayclass
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: banking-gateway
+  namespace: gate
+spec:
+  gatewayClassName: kgateway   # Verify: kubectl get gatewayclass
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: All   # Allow HTTPRoutes from any namespace to attach
+
+---
+# ReferenceGrant: allow HTTPRoutes in `gate` to reference Services in `frontend`
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-gate-to-frontend
+  namespace: frontend   # MUST be in the target namespace
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: gate
+  to:
+    - group: ""
+      kind: Service
+
+---
+# ReferenceGrant: allow HTTPRoutes in `gate` to reference Services in `backend`
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: allow-gate-to-backend
+  namespace: backend   # MUST be in the target namespace
+spec:
+  from:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      namespace: gate
+  to:
+    - group: ""
+      kind: Service

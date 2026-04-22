@@ -1,0 +1,14 @@
+{{- if .Values.podDisruptionBudget.enabled }}
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "fraud-detection-service.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "fraud-detection-service.labels" . | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      {{- include "fraud-detection-service.selectorLabels" . | nindent 6 }}
+{{- end }}

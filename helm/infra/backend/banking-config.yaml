@@ -1,0 +1,39 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# banking-config — shared env vars for all backend microservices
+# Namespace: backend
+#
+# IMPORTANT: This is a LEGACY shared ConfigMap kept for services that have not
+# yet been migrated to per-service Helm ConfigMaps.
+#
+# Services with full Helm charts (account-service, loan-service,
+# fraud-detection-service) carry their own ConfigMaps and should NOT
+# reference this file. This exists for services still using raw manifests.
+#
+# Cross-namespace DNS: <service>.<namespace>.svc.cluster.local
+#   Infrastructure in `data` ns → full FQDN required
+#   Services in `backend` ns   → short names work (same namespace)
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: banking-config
+  namespace: backend
+data:
+  # ── Database (data namespace) ──────────────────────────────────────────────
+  DB_HOST: "mysql.data.svc.cluster.local"
+  DB_NAME: "banking_db"
+  # DB_USER and DB_PASS come from banking-secrets (secretKeyRef)
+
+  # ── Redis (data namespace) ─────────────────────────────────────────────────
+  REDIS_HOST: "redis.data.svc.cluster.local"
+  REDIS_PORT: "6379"
+
+  # ── RabbitMQ (data namespace) ──────────────────────────────────────────────
+  MQ_URL: "amqp://guest:guest@rabbitmq.data.svc.cluster.local:5672"
+
+  # ── Internal service URLs (backend namespace — short names OK) ─────────────
+  ACCOUNT_SVC_URL: "http://account-service:3002"
+  CONFIG_SVC_URL:  "http://config-service:3008"
+
+  # ── JWT ────────────────────────────────────────────────────────────────────
+  JWT_EXPIRE: "8h"

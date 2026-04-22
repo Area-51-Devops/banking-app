@@ -1,0 +1,31 @@
+Thank you for installing {{ .Chart.Name }} v{{ .Chart.Version }}!
+
+Release name : {{ .Release.Name }}
+Namespace    : {{ .Values.namespace }}
+Image        : {{ .Values.image.repository }}:{{ .Values.image.tag }}
+Replicas     : {{ .Values.replicaCount }}
+
+──────────────────────────────────────────────
+  Health endpoints
+──────────────────────────────────────────────
+  /health/startup   — startupProbe  (MySQL + RabbitMQ boot gate)
+  /health/liveness  — livenessProbe  (MySQL ping)
+  /health/readiness — readinessProbe (isStarted flag)
+
+──────────────────────────────────────────────
+  Quick access (port-forward)
+──────────────────────────────────────────────
+  kubectl port-forward -n {{ .Values.namespace }} \
+    svc/{{ include "loan-service.fullname" . }} 3005:{{ .Values.service.port }}
+
+  curl http://localhost:3005/health
+
+──────────────────────────────────────────────
+  HPA
+──────────────────────────────────────────────
+{{- if .Values.autoscaling.enabled }}
+  HPA is ENABLED ({{ .Values.autoscaling.minReplicas }}–{{ .Values.autoscaling.maxReplicas }} replicas, CPU {{ .Values.autoscaling.targetCPUUtilizationPercentage }}%)
+{{- else }}
+  HPA is DISABLED. Enable with:
+    --set autoscaling.enabled=true
+{{- end }}

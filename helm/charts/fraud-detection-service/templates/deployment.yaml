@@ -1,0 +1,113 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "fraud-detection-service.fullname" . }}
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "fraud-detection-service.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "fraud-detection-service.selectorLabels" . | nindent 6 }}
+  # Zero-downtime rollout: one new pod starts before an old one is removed.
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        {{- include "fraud-detection-service.selectorLabels" . | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      # ── Security ────────────────────────────────────────────
+      securityContext:
+        runAsNonRoot: {{ .Values.securityContext.runAsNonRoot }}
+        runAsUser: {{ .Values.securityContext.runAsUser }}
+
+      terminationGracePeriodSeconds: 30
+
+      # ── Init Containers ──────────────────────────────────────
+      # Ensure RabbitMQ and config-service are reachable before
+      # the main container starts. Prevents hard crash loops on boot.
+      initContainers:
+        {{- if .Values.initContainers.waitForRabbitmq.enabled }}
+        - name: wait-for-rabbitmq
+          image: {{ .Values.initContainers.waitForRabbitmq.image }}
+          command:
+            - sh
+            - -c
+            - |
+              until nc -z {{ .Values.initContainers.waitForRabbitmq.rabbitmqHost }} {{ .Values.initContainers.waitForRabbitmq.rabbitmqPort }}; do
+                echo "Waiting for RabbitMQ..."; sleep 3
+              done
+        {{- end }}
+        {{- if .Values.initContainers.waitForConfig.enabled }}
+        - name: wait-for-config
+          image: {{ .Values.initContainers.waitForConfig.image }}
+          command:
+            - sh
+            - -c
+            - |
+              until wget -qO- {{ .Values.initContainers.waitForConfig.configSvcHealthUrl }} 2>/dev/null | grep -q UP; do
+                echo "Waiting for config-service..."; sleep 5
+              done
+        {{- end }}
+
+      # ── Main Container ───────────────────────────────────────
+      containers:
+        - name: fraud-detection-service
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+
+          ports:
+            - name: http
+              containerPort: {{ .Values.service.targetPort }}
+              protocol: TCP
+
+          # ── Environment ─────────────────────────────────────
+          envFrom:
+            - configMapRef:
+                name: {{ include "fraud-detection-service.fullname" . }}-config
+
+          # ── Probes ──────────────────────────────────────────
+          startupProbe:
+            httpGet:
+              path: {{ .Values.probes.startup.path }}
+              port: http
+            failureThreshold: {{ .Values.probes.startup.failureThreshold }}
+            periodSeconds: {{ .Values.probes.startup.periodSeconds }}
+
+          livenessProbe:
+            httpGet:
+              path: {{ .Values.probes.liveness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.liveness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.liveness.failureThreshold }}
+
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.probes.readiness.path }}
+              port: http
+            initialDelaySeconds: {{ .Values.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.probes.readiness.timeoutSeconds }}
+            failureThreshold: {{ .Values.probes.readiness.failureThreshold }}
+
+          # ── Resources ───────────────────────────────────────
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+
+          # ── Container Security ───────────────────────────────
+          securityContext:
+            allowPrivilegeEscalation: {{ .Values.securityContext.allowPrivilegeEscalation }}
+            readOnlyRootFilesystem: {{ .Values.securityContext.readOnlyRootFilesystem }}
+            capabilities:
+              {{- toYaml .Values.securityContext.capabilities | nindent 14 }}

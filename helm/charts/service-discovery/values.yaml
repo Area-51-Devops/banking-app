@@ -1,0 +1,46 @@
+namespace: backend
+image:
+  repository: area51devops/service-discovery
+  tag: "v0.0.2"
+  pullPolicy: IfNotPresent
+replicaCount: 1
+service:
+  type: ClusterIP
+  port: 3009
+  targetPort: 3009
+config:
+  PORT: "3009"
+  SERVICE_NAME: "service-discovery"
+initContainers: {}
+probes:
+  liveness:
+    path: /health
+    initialDelaySeconds: 20
+    periodSeconds: 30
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    path: /health
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+resources:
+  requests:
+    cpu: "50m"
+    memory: "64Mi"
+  limits:
+    cpu: "200m"
+    memory: "128Mi"
+autoscaling:
+  enabled: false
+podDisruptionBudget:
+  enabled: false
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  readOnlyRootFilesystem: false
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: [ALL]
+podAnnotations: {}

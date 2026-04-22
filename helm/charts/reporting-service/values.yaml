@@ -1,0 +1,65 @@
+namespace: backend
+image:
+  repository: area51devops/reporting-service
+  tag: "v0.0.4"
+  pullPolicy: IfNotPresent
+replicaCount: 1
+service:
+  type: ClusterIP
+  port: 3010
+  targetPort: 3010
+config:
+  PORT: "3010"
+  SERVICE_NAME: "reporting-service"
+  DB_HOST: "mysql.data.svc.cluster.local"
+  DB_NAME: "banking_db"
+secrets:
+  name: banking-secrets
+  keys:
+    dbUser: DB_USER
+    dbPass: DB_PASS
+initContainers:
+  waitForMySQL:
+    enabled: true
+    image: busybox:1.36
+    host: "mysql.data.svc.cluster.local"
+    port: 3306
+probes:
+  startup:
+    path: /health/startup
+    failureThreshold: 30
+    periodSeconds: 5
+  liveness:
+    path: /health/liveness
+    initialDelaySeconds: 10
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 4
+  readiness:
+    path: /health/readiness
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "400m"
+    memory: "256Mi"
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 70
+podDisruptionBudget:
+  enabled: false
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  readOnlyRootFilesystem: false
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: [ALL]
+podAnnotations: {}

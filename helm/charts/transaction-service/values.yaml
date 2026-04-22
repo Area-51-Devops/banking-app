@@ -1,0 +1,83 @@
+namespace: backend
+image:
+  repository: area51devops/transaction-service
+  tag: "v0.2.7"
+  pullPolicy: IfNotPresent
+replicaCount: 1
+service:
+  type: ClusterIP
+  port: 3003
+  targetPort: 3003
+config:
+  PORT: "3003"
+  SERVICE_NAME: "transaction-service"
+  DB_HOST: "mysql.data.svc.cluster.local"
+  DB_NAME: "banking_db"
+  MQ_URL: "amqp://guest:guest@rabbitmq.data.svc.cluster.local:5672"
+  ACCOUNT_SVC_URL: "http://account-service:3002"
+  CONFIG_SVC_URL: "http://config-service:3008"
+secrets:
+  name: banking-secrets
+  keys:
+    dbUser: DB_USER
+    dbPass: DB_PASS
+initContainers:
+  waitForMySQL:
+    enabled: true
+    image: busybox:1.36
+    host: "mysql.data.svc.cluster.local"
+    port: 3306
+  waitForRabbitmq:
+    enabled: true
+    image: busybox:1.36
+    host: "rabbitmq.data.svc.cluster.local"
+    port: 5672
+  waitForAccount:
+    enabled: true
+    image: busybox:1.36
+    healthUrl: "http://account-service:3002/health/startup"
+  waitForConfig:
+    enabled: true
+    image: busybox:1.36
+    healthUrl: "http://config-service:3008/health/startup"
+probes:
+  startup:
+    path: /health/startup
+    initialDelaySeconds: 30
+    failureThreshold: 40
+    periodSeconds: 5
+  liveness:
+    path: /health/liveness
+    initialDelaySeconds: 10
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 4
+  readiness:
+    path: /health/readiness
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+resources:
+  requests:
+    cpu: "250m"
+    memory: "128Mi"
+  limits:
+    cpu: "500m"
+    memory: "256Mi"
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 8
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+podDisruptionBudget:
+  enabled: false
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  readOnlyRootFilesystem: false
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: [ALL]
+podAnnotations: {}

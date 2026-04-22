@@ -1,0 +1,12 @@
+apiVersion: v2
+name: loan-service
+description: NexusBank Loan Service – manages loan applications, EMI calculations, approvals, and disbursements
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - banking
+  - loan
+  - microservice
+maintainers:
+  - name: area-51-devops

@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "reporting-service.labels" . | nindent 4 }}
+data:
+  PORT: {{ .Values.config.PORT | quote }}
+  SERVICE_NAME: {{ .Values.config.SERVICE_NAME | quote }}
+  DB_HOST: {{ .Values.config.DB_HOST | quote }}
+  DB_NAME: {{ .Values.config.DB_NAME | quote }}

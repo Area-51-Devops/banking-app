@@ -1,0 +1,9 @@
+apiVersion: v2
+name: payment-service
+description: NexusBank Payment Service – bill payments and payment processing
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords: [banking, payments, microservice]
+maintainers:
+  - name: area-51-devops

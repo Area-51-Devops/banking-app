@@ -1,0 +1,9 @@
+apiVersion: v2
+name: transaction-service
+description: NexusBank Transaction Service – saga-driven fund transfers and outbox events
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords: [banking, transactions, saga, microservice]
+maintainers:
+  - name: area-51-devops

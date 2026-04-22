@@ -1,0 +1,33 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# user_route — direct Gateway routing for /api/user/
+#
+# Path rewrite: /api/user/users/login → /users/login
+#   prefix /api/user/ is stripped, replaced with / then remainder appended
+#
+# Browser calls:  /api/user/users/login
+# user-service receives: /users/login
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: user-route
+  namespace: gate
+spec:
+  parentRefs:
+    - name: banking-gateway
+      namespace: gate
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /api/user/
+      filters:
+        - type: URLRewrite
+          urlRewrite:
+            path:
+              type: ReplacePrefixMatch
+              replacePrefixMatch: /
+      backendRefs:
+        - name: user-service
+          namespace: backend
+          port: 3001

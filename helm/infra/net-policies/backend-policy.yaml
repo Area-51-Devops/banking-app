@@ -1,0 +1,129 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# backend-policy — allow rules for the `backend` namespace
+#
+# Ingress: from gate (direct routing), from frontend (proxy fallback)
+#          from backend itself (inter-service calls)
+# Egress:  → data (MySQL:3306, Redis:6379, RabbitMQ:5672)
+#          → backend itself (inter-service)
+#          → kube-dns
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Allow ingress from gate namespace (primary routing)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-from-gate
+  namespace: backend
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: gate
+      ports:
+        - port: 3001
+        - port: 3002
+        - port: 3003
+        - port: 3004
+        - port: 3005
+        - port: 3006
+        - port: 3007
+        - port: 3008
+        - port: 3009
+        - port: 3010
+
+---
+# Allow ingress from frontend namespace (nginx proxy fallback for payment/notify)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-from-frontend
+  namespace: backend
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: frontend
+      ports:
+        - port: 3004   # payment-service
+        - port: 3006   # notification-service
+
+---
+# Allow intra-backend ingress (service-to-service calls: user-service → account-service etc.)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-intra-backend
+  namespace: backend
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: backend
+
+---
+# Allow egress to data namespace (MySQL, Redis, RabbitMQ)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-to-data
+  namespace: backend
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: data
+      ports:
+        - port: 3306   # MySQL
+        - port: 6379   # Redis
+        - port: 5672   # RabbitMQ
+
+---
+# Allow intra-backend egress (service-to-service calls)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-intra-backend
+  namespace: backend
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: backend
+
+---
+# Allow egress to kube-dns
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-egress-dns
+  namespace: backend
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP

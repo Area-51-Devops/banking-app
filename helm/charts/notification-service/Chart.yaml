@@ -1,0 +1,9 @@
+apiVersion: v2
+name: notification-service
+description: NexusBank Notification Service – event-driven user notifications via RabbitMQ
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords: [banking, notifications, microservice]
+maintainers:
+  - name: area-51-devops

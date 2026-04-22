@@ -1,0 +1,77 @@
+namespace: backend
+image:
+  repository: area51devops/user-service
+  tag: "v0.1.0"
+  pullPolicy: IfNotPresent
+replicaCount: 1
+service:
+  type: ClusterIP
+  port: 3001
+  targetPort: 3001
+# Non-sensitive config
+config:
+  PORT: "3001"
+  SERVICE_NAME: "user-service"
+  DB_HOST: "mysql.data.svc.cluster.local"
+  DB_NAME: "banking_db"
+  REDIS_HOST: "redis.data.svc.cluster.local"
+  REDIS_PORT: "6379"
+  JWT_EXPIRE: "8h"
+  ACCOUNT_SVC_URL: "http://account-service:3002"
+# Secret references — actual values live in banking-secrets (applied via infra/secrets.yaml.template)
+secrets:
+  name: banking-secrets # pre-existing Secret in the backend namespace
+  keys:
+    dbUser: DB_USER
+    dbPass: DB_PASS
+    jwtSecret: JWT_SECRET
+initContainers:
+  waitForMySQL:
+    enabled: true
+    image: busybox:1.36
+    host: "mysql.data.svc.cluster.local"
+    port: 3306
+  waitForRedis:
+    enabled: true
+    image: busybox:1.36
+    host: "redis.data.svc.cluster.local"
+    port: 6379
+probes:
+  startup:
+    path: /health/startup
+    failureThreshold: 30
+    periodSeconds: 5
+  liveness:
+    path: /health/liveness
+    initialDelaySeconds: 10
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 4
+  readiness:
+    path: /health/readiness
+    initialDelaySeconds: 10
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 6
+resources:
+  requests:
+    cpu: "100m"
+    memory: "128Mi"
+  limits:
+    cpu: "400m"
+    memory: "256Mi"
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 70
+podDisruptionBudget:
+  enabled: false
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  readOnlyRootFilesystem: false
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop: [ALL]
+podAnnotations: {}

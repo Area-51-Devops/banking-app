@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    {{- include "service-discovery.labels" . | nindent 4 }}
+data:
+  PORT: {{ .Values.config.PORT | quote }}
+  SERVICE_NAME: {{ .Values.config.SERVICE_NAME | quote }}

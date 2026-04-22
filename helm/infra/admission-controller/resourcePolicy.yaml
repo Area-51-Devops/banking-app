@@ -1,0 +1,43 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Kyverno ClusterPolicy: Resource Limits Required
+#
+# Requires: Kyverno
+# Policy: Every container in the banking namespaces must have
+#         CPU and memory requests + limits defined.
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: banking-resource-policy
+  annotations:
+    policies.kyverno.io/title: Require Resource Limits
+    policies.kyverno.io/description: >
+      All containers in the banking namespaces must define CPU and memory
+      requests and limits to prevent runaway resource consumption and enable
+      reliable scheduling and autoscaling.
+spec:
+  validationFailureAction: Enforce   # Change to Audit during initial rollout
+  background: true
+  rules:
+    - name: require-resource-limits
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces:
+                - frontend
+                - backend
+                - data
+      validate:
+        message: "All containers must have CPU and memory requests and limits defined."
+        pattern:
+          spec:
+            containers:
+              - name: "*"
+                resources:
+                  requests:
+                    memory: "?*"
+                    cpu: "?*"
+                  limits:
+                    memory: "?*"
+                    cpu: "?*"

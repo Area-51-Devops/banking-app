@@ -1,0 +1,53 @@
+namespace: frontend
+image:
+  repository: area51devops/frontend
+  tag: "v0.2.3"
+  pullPolicy: IfNotPresent
+replicaCount: 1
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 80
+# nginx.conf is rendered from this block and mounted into the pod.
+# Routes NOT handled by Kgateway HTTPRoutes are proxied here.
+nginx:
+  paymentServiceUrl: "http://payment-service.backend.svc.cluster.local:3004"
+  notificationServiceUrl: "http://notification-service.backend.svc.cluster.local:3006"
+  staticCacheMaxAge: "30d"
+initContainers:
+  waitForUserService:
+    enabled: true
+    image: busybox:1.36
+    healthUrl: "http://user-service.backend.svc.cluster.local:3001/health/startup"
+  waitForAccountService:
+    enabled: true
+    image: busybox:1.36
+    healthUrl: "http://account-service.backend.svc.cluster.local:3002/health/startup"
+probes:
+  liveness:
+    path: /
+    initialDelaySeconds: 10
+    periodSeconds: 15
+    timeoutSeconds: 5
+    failureThreshold: 3
+  readiness:
+    path: /
+    initialDelaySeconds: 5
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+resources:
+  requests:
+    cpu: "50m"
+    memory: "64Mi"
+  limits:
+    cpu: "200m"
+    memory: "128Mi"
+autoscaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 4
+  targetCPUUtilizationPercentage: 70
+podDisruptionBudget:
+  enabled: false
+podAnnotations: {}

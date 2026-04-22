@@ -1,0 +1,28 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Prometheus ServiceMonitor — scrapes all backend microservices
+#
+# Requires: Prometheus Operator
+#   kubectl apply -f https://github.com/prometheus-operator/prometheus-operator/releases/latest/download/bundle.yaml
+#
+# Services need label: monitoring: "true" to be discovered.
+# If your services expose /metrics (via prom-client), add that label to each Service.
+# ─────────────────────────────────────────────────────────────────────────────
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: banking-services-monitor
+  namespace: backend
+  labels:
+    release: prometheus   # Match your Prometheus Operator's serviceMonitorSelector
+spec:
+  selector:
+    matchLabels:
+      monitoring: "true"   # Add this label to any Service you want scraped
+  namespaceSelector:
+    matchNames:
+      - backend
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s

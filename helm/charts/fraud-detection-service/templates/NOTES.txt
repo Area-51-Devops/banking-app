@@ -1,0 +1,35 @@
+Thank you for installing {{ .Chart.Name }} v{{ .Chart.Version }}!
+
+Release name : {{ .Release.Name }}
+Namespace    : {{ .Values.namespace }}
+Image        : {{ .Values.image.repository }}:{{ .Values.image.tag }}
+Replicas     : {{ .Values.replicaCount }}
+
+──────────────────────────────────────────────
+  Dependencies (checked by initContainers)
+──────────────────────────────────────────────
+  RabbitMQ    : {{ .Values.initContainers.waitForRabbitmq.rabbitmqHost }}:{{ .Values.initContainers.waitForRabbitmq.rabbitmqPort }}
+  Config Svc  : {{ .Values.initContainers.waitForConfig.configSvcHealthUrl }}
+
+──────────────────────────────────────────────
+  Health endpoints
+──────────────────────────────────────────────
+  /health/startup — startupProbe, livenessProbe & readinessProbe
+
+──────────────────────────────────────────────
+  Quick access (port-forward)
+──────────────────────────────────────────────
+  kubectl port-forward -n {{ .Values.namespace }} \
+    svc/{{ include "fraud-detection-service.fullname" . }} 3007:{{ .Values.service.port }}
+
+  curl http://localhost:3007/health/startup
+
+──────────────────────────────────────────────
+  HPA
+──────────────────────────────────────────────
+{{- if .Values.autoscaling.enabled }}
+  HPA is ENABLED ({{ .Values.autoscaling.minReplicas }}–{{ .Values.autoscaling.maxReplicas }} replicas, CPU {{ .Values.autoscaling.targetCPUUtilizationPercentage }}%)
+{{- else }}
+  HPA is DISABLED. Enable with:
+    --set autoscaling.enabled=true
+{{- end }}
